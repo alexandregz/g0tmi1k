@@ -1,6 +1,6 @@
 #!/bin/bash
 #----------------------------------------------------------------------------------------------#
-#wiffy.sh v0.1 (#2 2010-09-11)                                                                 #
+#wiffy.sh v0.1 (#4 2010-09-11)                                                                 #
 # (C)opyright 2010 - g0tmi1k                                                                   #
 #---License------------------------------------------------------------------------------------#
 #  This program is free software: you can redistribute it and/or modify it under the terms     #
@@ -37,7 +37,7 @@ diagnostics="false"
 verbose="0"
 
 #---Variables----------------------------------------------------------------------------------#
-         version="0.1 (#2)"   # Version
+         version="0.1 (#4)"   # Version
 monitorInterface="mon0"       # Default
            bssid=""           # null the value
            essid=""           # null the value
@@ -189,28 +189,28 @@ function help() {
 
  Known issues:
     -WEP
-       > Didnt detect my client
+       > Didn't detect my client
           + Add it in manually
           + Re-run the script
-       > IV's doesn't increaes
+       > IV's doesn't increae
           + DeAuth didn't work --- Client using Windows 7?
           + Use a different router/client
 
     -WPA
        > You can ONLY crack WPA when:
           + The ESSID is known
-          + The WiFi key is in the wordlist
+          + The WiFi key is in the word-list
           + There is a connected client
 
     -Doesn't detect any/my wireless network
        > Don't run from a virtual machine
        > Driver issue - Use a different WiFi device
        > Re-run the script
-       > Client is too close/far away
+       > You're too close/far away
        > Unplug WiFi device, wait, replug
 
-    -\"Extra\" doesnt work
-       > Network doesnt have a DHCP server
+    -\"Extras\" doesn't work
+       > Network doesn't have a DHCP server
 
     -Slow
        > Try a different attack... manually!
