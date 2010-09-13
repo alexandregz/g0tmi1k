@@ -1,6 +1,6 @@
 #!/bin/bash
 #----------------------------------------------------------------------------------------------#
-#wiffy.sh v0.1 (#6 2010-09-13)                                                                 #
+#wiffy.sh v0.1 (#7 2010-09-13)                                                                 #
 # (C)opyright 2010 - g0tmi1k                                                                   #
 #---License------------------------------------------------------------------------------------#
 #  This program is free software: you can redistribute it and/or modify it under the terms     #
@@ -37,7 +37,7 @@ diagnostics="false"
 verbose="0"
 
 #---Variables----------------------------------------------------------------------------------#
-         version="0.1 (#6)"   # Version
+         version="0.1 (#7)"   # Version
 monitorInterface="mon0"       # Default
            bssid=""           # null the value
            essid=""           # null the value
@@ -342,17 +342,17 @@ if [ -e "/tmp/wiffy.handshake" ] ; then command="$command /tmp/wiffy.handshake" 
 if [ ! -z "$command" ] ; then action "Removing old files" "rm -rfv $command" $verbose $diagnostics "true" ; fi
 
 #----------------------------------------------------------------------------------------------#
-if [ -z "$interface" ] ; then display error "interface can't be blank" $diagnostics 1>&2 ; cleanup; fi
-if [ -z "$monitorInterface" ] ; then display error "monitorInterface can't be blank" $diagnostics 1>&2 ; cleanup; fi
-if [ "$mode" != "crack" ] && [ "$mode" != "dos" ] ; then display error "mode ($mode) isn't correct" $diagnostics 1>&2 ; cleanup; fi
-if [ ! -e "$wordlist" ] ; then display error "There isn't a wordlist at $wordlist" $diagnostics 1>&2 ; cleanup; fi
-if [ "$macMode" != "random" ] && [ "$macMode" != "set" ] && [ "$macMode" != "false" ] ; then display error "macMode ($macMode) isn't correct" $diagnostics 1>&2 ; cleanup; fi
-if [ "$macMode" == "set" ] ; then if [ -z "$fakeMac" ] || [ ! $(echo $fakeMac | egrep "^([0-9a-fA-F]{2}\:){5}[0-9a-fA-F]{2}$") ] ; then display error "fakeMac ($fakeMac) isn't correct" $diagnostics 1>&2 ; cleanup; fi ; fi
-if [ "$mode" == "crack" ] && [ "$extras" != "true" ] && [ "$extras" != "false" ] ; then display error "extras ($extras) isn't correct" $diagnostics 1>&2 ; cleanup; fi
-if [ "$diagnostics" != "true" ] && [ "$diagnostics" != "false" ] ; then display error "diagnostics ($diagnostics) isn't correct" $diagnostics 1>&2 ; cleanup; fi
-if [ "$verbose" != "0" ] && [ "$verbose" != "1" ] && [ "$verbose" != "2" ] ; then display error "verbose ($verbose) isn't correct" $diagnostics 1>&2 ; cleanup; fi
-if [ -z "$version" ] ; then display error "version ($version) isn't correct" $diagnostics 1>&2 ; cleanup; fi
-if [ "$debug" != "true" ] && [ "$debug" != "false" ] ; then display error "debug ($debug) isn't correct" $diagnostics 1>&2 ; cleanup; fi
+if [ -z "$interface" ] ; then display error "interface can't be blank" $diagnostics 1>&2 ; cleanup ; fi
+if [ -z "$monitorInterface" ] ; then display error "monitorInterface can't be blank" $diagnostics 1>&2 ; cleanup ; fi
+if [ "$mode" != "crack" ] && [ "$mode" != "dos" ] ; then display error "mode ($mode) isn't correct" $diagnostics 1>&2 ; cleanup ; fi
+if [ ! -e "$wordlist" ] ; then display error "Unable to crack WPA due to there isn't a wordlist at: $wordlist" $diagnostics 1>&2 ; fi # Can't do WPA...
+if [ "$macMode" != "random" ] && [ "$macMode" != "set" ] && [ "$macMode" != "false" ] ; then display error "macMode ($macMode) isn't correct" $diagnostics 1>&2 ; cleanup ; fi
+if [ "$macMode" == "set" ] ; then if [ -z "$fakeMac" ] || [ ! $(echo $fakeMac | egrep "^([0-9a-fA-F]{2}\:){5}[0-9a-fA-F]{2}$") ] ; then display error "fakeMac ($fakeMac) isn't correct" $diagnostics 1>&2 ; cleanup ; fi ; fi
+if [ "$mode" == "crack" ] && [ "$extras" != "true" ] && [ "$extras" != "false" ] ; then display error "extras ($extras) isn't correct" $diagnostics 1>&2 ; cleanup ; fi
+if [ "$diagnostics" != "true" ] && [ "$diagnostics" != "false" ] ; then display error "diagnostics ($diagnostics) isn't correct" $diagnostics 1>&2 ; cleanup ; fi
+if [ "$verbose" != "0" ] && [ "$verbose" != "1" ] && [ "$verbose" != "2" ] ; then display error "verbose ($verbose) isn't correct" $diagnostics 1>&2 ; cleanup ; fi
+if [ -z "$version" ] ; then display error "version ($version) isn't correct" $diagnostics 1>&2 ; cleanup ; fi
+if [ "$debug" != "true" ] && [ "$debug" != "false" ] ; then display error "debug ($debug) isn't correct" $diagnostics 1>&2 ; cleanup ; fi
 if [ "$diagnostics" == "true" ] && [ -z "$logFile" ] ; then display error "logFile ($logFile) isn't correct" $diagnostics 1>&2 ; cleanup ; fi
 
 #----------------------------------------------------------------------------------------------#
@@ -598,7 +598,7 @@ if [ "$mode" == "crack" ] ; then
       echo "g0tmi1k" > /tmp/wiffy.tmp
       for (( ; ; )) ; do
          action "aircrack-ng" "aircrack-ng /tmp/wiffy*.cap -w /tmp/wiffy.tmp -e \"$essid\" > /tmp/wiffy.handshake" $verbose $diagnostics "true"
-         command=$(cat /tmp/wiffy.handshake | grep "Passphrase not in dictionary" ) #Got no data packets from client network & No valid WPA handshakes found
+         command=$(cat /tmp/wiffy.handshake | grep "Passphrase not in dictionary") #Got no data packets from client network & No valid WPA handshakes found
          if [ "$command" ] ; then break; fi
          sleep 2
          if [ "$loop" != "1" ] ; then
@@ -619,7 +619,7 @@ if [ "$mode" == "crack" ] ; then
    fi
 
    #----------------------------------------------------------------------------------------------#
-   if [ "$encryption" == "WEP" ] || [ "$encryption" == "WPA" ] ; then
+   if [ "$encryption" == "WEP" ] || [ "$encryption" == "WPA" ] && [ ! -e "$wordlist" ] ; then
       display action "Starting: aircrack-ng" $diagnostics
       if [ "$encryption" == "WEP" ] ; then action "aircrack-ng" "aircrack-ng /tmp/wiffy*.cap -e \"$essid\" -l /tmp/wiffy.key" $verbose $diagnostics "false" "0|350|30" ; fi
       if [ "$encryption" == "WPA" ] ; then action "aircrack-ng" "aircrack-ng /tmp/wiffy*.cap -w $wordlist -e \"$essid\" -l /tmp/wiffy.key" $verbose $diagnostics "false" "0|0|20" ; fi
@@ -657,7 +657,8 @@ if [ "$mode" == "crack" ] ; then
       fi
    #----------------------------------------------------------------------------------------------#
    elif [ "$encryption" == "WPA" ] ; then
-      display error "WiFi Key not in wordlist" $diagnostics 1>&2
+      if [ -e "$wordlist" ] ; then display error "WiFi Key not in wordlist" $diagnostics 1>&2 
+      else display error "There isn't a wordlist at: $wordlist" $diagnostics 1>&2 ; fi
       display action "Moving handshake: $(pwd)/wiffy-$essid.cap" $diagnostics 1>&2
       action "Moving capture" "mv -f /tmp/wiffy*.cap $(pwd)/wiffy-$essid.cap" $verbose $diagnostics "true"
    #----------------------------------------------------------------------------------------------#
