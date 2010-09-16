@@ -1,7 +1,13 @@
 #!/usr/bin/python
-
+#----------------------------------------------------------------------------------------------#
+#chap2asleap.py v0.2 (2010-09-16)                                                              #
+# (C)opyright 2010 - g0tmi1k                                                                   #
+#---Important----------------------------------------------------------------------------------#
+#                     *** Do NOT use this for illegal or malicious use ***                     #
+#---Modules------------------------------------------------------------------------------------#
 import os, re, sys, hashlib, getopt, binascii
-#----------------------------------------------------------
+
+#---Variables----------------------------------------------------------------------------------#
 asleap_path   = '/pentest/wireless/asleap' # NO trailing '/'
 wordlist_path = '/pentest/passwords/wordlists/darkc0de.lst'
 verbose = False
@@ -10,13 +16,16 @@ wordlist = False
 txtUser = ''
 txtChal = ''
 txtChal = ''
-#----------------------------------------------------------
-def SplitList( list, chunk_size ) :
-    return "".join([list[offs:offs+chunk_size] + ':' for offs in range(0, len(list), chunk_size)])
-#----------------------------------------------------------
+
+#----Functions---------------------------------------------------------------------------------#
+def SplitList( list, chunk_size ):
+	return "".join([list[offs:offs+chunk_size] + ':' for offs in range(0, len(list), chunk_size)])
 def help_message():
-    print '''Usage: python chap2asleap.py [options]
-Options:
+	print '''(C)opyright 2010 g0tmi1k ~ http://g0tmi1k.blogspot.com
+	
+ Usage: python chap2asleap.py [options]
+ 
+ Options:
    -u username...             -- Username
    -c 0123456789ABCDEF...     -- PPP CHAP Challenge (32 characters)
    -r 0123456789ABCDEF...     -- PPP CHAP Response  (98 characters)
@@ -28,20 +37,43 @@ Options:
    -w                         -- Uses "Wordlist" instead of "genkey" (Default)
    -p "/path/to/asleap"       -- Default:''' + asleap_path + '''
    -d "/path/to/wordlist.lst" -- Default:''' + wordlist_path + '''
+   
+   --update                   -- Downloads the latest version
 
-Example:
+ Example:
    python chap2asleap.py -u scott -c e3a5d0775370bda51e16219a06b0278f -r 84c4b33e00d9231645598acf91c384800000000000000000565fe2492fd5fb88edaec934c00d282c046227406c31609b00 -x -v
 
-Extra Help:
+ Extra Help:
 Authors Page: http://www.willhackforsushi.com/Asleap.html
    Blog Post: http://g0tmi1k.blogspot.com/2010/03/script-chap2asleappy.html
        Video: http://g0tmi1k.blogspot.com/2010/03/video-cracking-vpn-asleap-thc-pptp.html'''
-#----------------------------------------------------------
-print "\n       ~~~chap2asleap v0.1.1 - Asleap Argument Generator~~~\n(C)opyright 2010, 'g0tmi1k' ~ http://g0tmi1k.blogspot.com\n"
-#----------------------------------------------------------
-#   ---- Check if any of the Options flags were specified ----
+	sys.exit(0)
+
+def updateScript():
+	from urllib2 import Request, urlopen, URLError, HTTPError
+
+	print "[>] Updating..."
+	url = "http://g0tmi1k.googlecode.com/svn/trunk/chap2asleap/chap2asleap.py"
+	req = Request(url)
+	try:
+		f = urlopen(req)
+		local_file = open("chap2asleappy.py", "w")
+		local_file.write(f.read())
+		local_file.close()
+		print "[>] Updated! (="
+	except HTTPError, e:
+		print "[!] Failed. HTTP Error:",e.code , url
+	except URLError, e:
+		print "[!] Failed. URL Error:",e.reason , url
+	sys.exit(0)
+
+      
+#---Main---------------------------------------------------------------------------------------#
+print "[*] chap2asleap v0.2 ~ Asleap Argument Generator"
+
+#----------------------------------------------------------------------------------------------#
 try:
-    opts, args = getopt.getopt(sys.argv[1:], "u:c:r:vxwp:d:h", ["user=","challenge=","response=","path=","wordlist=","help"])
+    opts, args = getopt.getopt(sys.argv[1:], "u:c:r:vxwp:d:h", ["user=","challenge=","response=","path=","wordlist=","help","update"])
 except getopt.GetoptError, err:
     # print help information and exit:
     print str(err) # will print something like "option -a not recognized"
@@ -49,7 +81,6 @@ except getopt.GetoptError, err:
 
 if len(opts) == 0 :
     help_message()
-    sys.exit(0)
 for o, a in opts:
     if o in ("-u", "--user"):
         txtUser = a
@@ -69,10 +100,10 @@ for o, a in opts:
         wordlist_path = a
     if o in ("-h", "--help"):
         help_message()
-        sys.exit(0)
+    if o in ("--update"):
+        updateScript()
 
-
-#----------------------------------------------------------
+#----------------------------------------------------------------------------------------------#
 if txtUser == "":
 	print "Sorry, you need to input a username (-u)."
 	sys.exit(0)
@@ -96,11 +127,13 @@ if not re.search("[0-f]", txtChal):
 if not re.search("[0-f]", txtResp):
 	print "Sorry, you cant input that for the CHAP Response. 0-9 a-f."
 	sys.exit(0)
-
+	
+#----------------------------------------------------------------------------------------------#
 if verbose == True: print "[>]       Username: " + txtUser
 if verbose == True: print "[>] CHAP Challenge: " + txtChal
 if verbose == True: print "[>]  CHAP Response: " + txtResp
 
+#----------------------------------------------------------------------------------------------#
 authChallenge = binascii.unhexlify(txtChal)
 peerChallenge = binascii.unhexlify((txtResp)[0:32])
 
@@ -116,14 +149,17 @@ if verbose == True: print "[>]      Challenge: " + challenge + "\n"
 challenge = (SplitList (challenge,2 ))[0:-1]
 response  = (SplitList  (response,2 ))[0:-1]
 
+#----------------------------------------------------------------------------------------------#
 if verbose == True: print 'cd '+ asleap_path
 if (verbose == True and wordlist == False): print './genkey -r ' + wordlist_path + ' -f words.dat -n words.idx'
 if wordlist == False: print './asleap -C ' + challenge + ' -R ' + response + ' -f words.dat -n words.idx' + '\n\n'
 if wordlist == True: print './asleap -C ' + challenge + ' -R ' + response + ' -W ' + wordlist_path + '\n\n'
 
+#----------------------------------------------------------------------------------------------#
 if (run == True and wordlist == False): os.system( asleap_path + '/genkeys -r ' + wordlist_path + ' -f /tmp/words.dat -n /tmp/words.idx')
 if (run == True and wordlist == False): os.system( asleap_path + '/asleap -C ' + challenge + ' -R ' + response + ' -f /tmp/words.dat -n /tmp/words.idx')
 if (run == True and wordlist == True): os.system( asleap_path + '/asleap -C ' + challenge + ' -R ' + response + ' -W ' + wordlist_path)
 
+#----------------------------------------------------------------------------------------------#
 if (run == True and wordlist == False): os.remove ('/tmp/words.dat')
 if (run == True and wordlist == False): os.remove ('/tmp/words.idx')
