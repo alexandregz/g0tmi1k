@@ -1,6 +1,6 @@
 #!/bin/bash
 #----------------------------------------------------------------------------------------------#
-#wiffy.sh v0.1 (#15 2010-09-17)                                                                #
+#wiffy.sh v0.1 (#16 2010-09-17)                                                                #
 # (C)opyright 2010 - g0tmi1k                                                                   #
 #---License------------------------------------------------------------------------------------#
 #  This program is free software: you can redistribute it and/or modify it under the terms     #
@@ -32,12 +32,12 @@ wordlist="/pentest/passwords/wordlists/wpa.txt"
 # [true/false] Connect to network afterwords
 extras="false"
 
-# [true/false] diagnostics = Creates a output file displays exactly whats going on. [0/1/2] verbose Shows more info. 0=normal, 1=more , 2=more+commands
+# [true/false] diagnostics = Creates a output file displays exactly whats going on. [0/1/2] verbose = Shows more info. 0=normal, 1=more , 2=more+commands
 diagnostics="false"
 verbose="0"
 
 #---Variables----------------------------------------------------------------------------------#
-         version="0.1 (#15)"  # Version
+         version="0.1 (#16)"  # Version
 monitorInterface="mon0"       # Default
            bssid=""           # null the value
            essid=""           # null the value
@@ -73,7 +73,7 @@ function action() { #action title command #screen&file #x|y|lines #hold
       return 0
    else
       display error "action. Error code: $error" 1>&2
-      echo -e "---------------------------------------------------------------------------------------------\n-->ERROR: action (Error code: $error): $1, $2, $3, $4, $5" >> $logFile ;
+      echo -e "---------------------------------------------------------------------------------------------\nERROR: action (Error code: $error): $1, $2, $3, $4, $5" >> $logFile ;
       return 1
    fi
 }
@@ -87,6 +87,7 @@ function cleanup() { #cleanup #mode
 
    if [ "$1" != "remove" ]; then
       display action "Restoring: Environment"
+      if [ "$verbose" != "0" ] || [ "$diagnostics" == "true" ] || [ "$debug" == "true" ] ; then display action "Restoring: Programs" ; fi
       command=$(ifconfig -a | grep $monitorInterface | awk '{print $1}')
       if [ "$command" == "$monitorInterface" ] ; then
          sleep 3 # Sometimes it needs to catch up/wait
@@ -97,6 +98,7 @@ function cleanup() { #cleanup #mode
    fi
 
    if [ "$debug" != "true" ] || [ "$1" == "remove" ] ; then
+      if [ "$verbose" != "0" ] || [ "$diagnostics" == "true" ] || [ "$debug" == "true" ] ; then display action "Removing: Temp files" ; fi
       command=""
       tmp=$(ls /tmp/wiffy-*.cap 2> /dev/null)
       if [ "$tmp" ] ; then command="$command /tmp/wiffy-*" ; fi
@@ -104,12 +106,14 @@ function cleanup() { #cleanup #mode
       if [ "$tmp" ] ; then command="$command /tmp/wiffy.dump*" ; fi
       tmp=$(ls replay_arp*.cap 2> /dev/null)
       if [ "$tmp" ] ; then command="$command replay_arp*.cap" ; fi
+      if [ -e "/tmp/wiffy.key" ] ; then command="$command /tmp/wiffy.key" ; fi
       if [ -e "/tmp/wiffy.tmp" ] ; then command="$command /tmp/wiffy.tmp" ; fi
       if [ -e "/tmp/wiffy.handshake" ] ; then command="$command /tmp/wiffy.handshake" ; fi
       if [ ! -z "$command" ] ; then action "Removing temp files" "rm -rfv $command" ; fi
    fi
 
    if [ "$1" != "remove" ] ; then
+      if [ "$diagnostics" == "true" ] ; then echo -e "End @ $(date)" >> $logFile ; fi
       echo -e "\e[01;36m[*]\e[00m Done! (= Have you... g0tmi1k?"
       exit 0
    fi
@@ -124,7 +128,7 @@ function display() { #display type message
       if [ "$1" == "action" ] ; then output="\e[01;32m[>]\e[00m" ; fi
       if [ "$1" == "info" ] ; then output="\e[01;33m[i]\e[00m" ; fi
       if [ "$1" == "diag" ] ; then output="\e[01;34m[+]\e[00m" ; fi
-      if [ "$1" == "error" ] ; then output="\e[01;31m[-]\e[00m" ; fi
+      if [ "$1" == "error" ] ; then output="\e[01;31m[!]\e[00m" ; fi
       output="$output $2"
       echo -e "$output"
 
@@ -132,13 +136,13 @@ function display() { #display type message
          if [ "$1" == "action" ] ; then output="[>]" ; fi
          if [ "$1" == "info" ] ; then output="[i]" ; fi
          if [ "$1" == "diag" ] ; then output="[+]" ; fi
-         if [ "$1" == "error" ] ; then output="[-]" ; fi
+         if [ "$1" == "error" ] ; then output="[!]" ; fi
          echo -e "---------------------------------------------------------------------------------------------\n$output $2" >> $logFile
       fi
       return 0
    else
       display error "display. Error code: $error" $logFile 1>&2
-      echo -e "---------------------------------------------------------------------------------------------\n-->ERROR: display (Error code: $error): $1, $2" >> $logFile ;
+      echo -e "---------------------------------------------------------------------------------------------\nERROR: display (Error code: $error): $1, $2" >> $logFile ;
       return 1
    fi
 }
@@ -299,7 +303,7 @@ function update() { #update
 }
 
 
-#----------------------------------------------------------------------------------------------#
+#---Main---------------------------------------------------------------------------------------#
 echo -e "\e[01;36m[*]\e[00m wiffy v$version"
 
 #----------------------------------------------------------------------------------------------#
@@ -330,7 +334,7 @@ if [ "$debug" == "true" ] ; then
 fi
 if [ "$diagnostics" == "true" ] ; then
    display diag "Diagnostics mode"
-   echo -e "wiffy v$version\n$(date)" > $logFile
+   echo -e "wiffy v$version\nStart @ $(date)" > $logFile
    echo "wiffy.sh" $* >> $logFile
 fi
 
@@ -618,15 +622,15 @@ if [ "$mode" == "crack" ] ; then
    #----------------------------------------------------------------------------------------------#
    if [ "$encryption" == "WEP" ] || [ "$encryption" == "WPA" ] && [ -e "$wordlist" ] ; then
       display action "Starting: aircrack-ng"
-      if [ "$encryption" == "WEP" ] ; then action "aircrack-ng" "aircrack-ng /tmp/wiffy*.cap -e \"$essid\" -l /tmp/wiffy.tmp" "false" "0|350|30" ; fi
-      if [ "$encryption" == "WPA" ] ; then action "aircrack-ng" "aircrack-ng /tmp/wiffy*.cap -w $wordlist -e \"$essid\" -l /tmp/wiffy.tmp" "false" "0|0|20" ; fi
+      if [ "$encryption" == "WEP" ] ; then action "aircrack-ng" "aircrack-ng /tmp/wiffy*.cap -e \"$essid\" -l /tmp/wiffy.key" "false" "0|350|30" ; fi
+      if [ "$encryption" == "WPA" ] ; then action "aircrack-ng" "aircrack-ng /tmp/wiffy*.cap -w $wordlist -e \"$essid\" -l /tmp/wiffy.key" "false" "0|0|20" ; fi
    fi
    action "Killing programs" "killall xterm && sleep 1"
    action "airmon-ng" "airmon-ng stop $monitorInterface"
 
    #----------------------------------------------------------------------------------------------#
-   if [ -e "/tmp/wiffy.tmp" ] ; then
-      key=$(cat /tmp/wiffy.tmp)
+   if [ -e "/tmp/wiffy.key" ] ; then
+      key=$(cat /tmp/wiffy.key)
       display info "WiFi key: $key"
       echo -e "---------------------------------------\n      Date: $(date)\n     ESSID: $essid\n     BSSID: $bssid\nEncryption: $encryption\n       Key: $key\n    Client: $client" >> "wiffy.key"
       #----------------------------------------------------------------------------------------------#
@@ -636,6 +640,8 @@ if [ "$mode" == "crack" ] ; then
             action "Spoofing MAC" "ifconfig $interface down && macchanger -m $client $interface && ifconfig $interface up"
          fi
          display action "Joining: $essid"
+         action "Starting 'wicd service'" "/etc/init.d/wicd start"           # Backtrack
+         action "Starting 'network manager'" "service network-manager start" # Ubuntu
          if [ "$encryption" == "WEP" ] ; then
             action "i[f/w]config" "ifconfig $interface down && iwconfig $interface essid $essid key $key && ifconfig $interface up"
          elif [ "$encryption" == "WPA" ] ; then
