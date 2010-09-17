@@ -1,6 +1,6 @@
 #!/bin/bash
 #----------------------------------------------------------------------------------------------#
-#wiffy.sh v0.1 (#10 2010-09-17)                                                                #
+#wiffy.sh v0.1 (#15 2010-09-17)                                                                #
 # (C)opyright 2010 - g0tmi1k                                                                   #
 #---License------------------------------------------------------------------------------------#
 #  This program is free software: you can redistribute it and/or modify it under the terms     #
@@ -37,7 +37,7 @@ diagnostics="false"
 verbose="0"
 
 #---Variables----------------------------------------------------------------------------------#
-         version="0.1 (#10)"  # Version
+         version="0.1 (#15)"  # Version
 monitorInterface="mon0"       # Default
            bssid=""           # null the value
            essid=""           # null the value
