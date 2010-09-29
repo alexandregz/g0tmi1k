@@ -1,6 +1,6 @@
 #!/bin/bash
 #----------------------------------------------------------------------------------------------#
-#wiffy.sh v0.1 (#19 2010-09-25)                                                                #
+#wiffy.sh v0.1 (#20 2010-09-28)                                                                #
 # (C)opyright 2010 - g0tmi1k                                                                   #
 #---License------------------------------------------------------------------------------------#
 #  This program is free software: you can redistribute it and/or modify it under the terms     #
@@ -15,8 +15,9 @@
 #  If not, see <http://www.gnu.org/licenses/>.                                                 #
 #---Important----------------------------------------------------------------------------------#
 #                     *** Do NOT use this for illegal or malicious use ***                     #
+#              The programs are provided as is without any guarantees or warranty.             #
 #---Defaults-----------------------------------------------------------------------------------#
-# The interfaces you use
+# The interfaces to use
 interface="wlan0"
 
 # [crack/dos/inject] Crack - cracks WiFi Keys, dos - blocks access to ap, inject - MITM attack
@@ -39,21 +40,19 @@ outputCAP="$(pwd)/"
 # [true/false] Test system performance at cracking WPA, attempts to generate ETA.
 benchmark="true"
 
-# [true/false] diagnostics = Creates a output file displays exactly whats going on. [0/1/2] verbose = Shows more info. 0=normal, 1=more , 2=more+commands
-diagnostics="false"
-verbose="0"
-
 #---Variables----------------------------------------------------------------------------------#
 monitorInterface="mon0"           # Default
        outputCAP="${outputCAP%/}" # Remove trailing slash
+     diagnostics="false"          # Creates a output file displays exactly whats going on
+         verbose="0"              # Shows more info. 0=normal, 1=more , 2=more+commands
            bssid=""               # null the value
            essid=""               # null the value
          channel=""               # null the value
           client=""               # null the value
            debug="false"          # Windows don't close, shows extra stuff
          logFile="wiffy.log"      # Filename of output
-             svn="19"             # SVN Number
-         version="0.1 (#19)"      # Program version
+             svn="20"             # SVN Number
+         version="0.1 (#20)"      # Program version
 trap 'cleanup interrupt' 2        # Captures interrupt signal (Ctrl + C)
 
 #----Functions---------------------------------------------------------------------------------#
@@ -116,8 +115,8 @@ function cleanup() { #cleanup #mode
       if [ "$tmp" ] ; then command="$command fragment*.xor" ; fi
       tmp=$(ls /tmp/wiffy-*.cap 2> /dev/null)
       if [ "$tmp" ] ; then command="$command /tmp/wiffy-*.cap" ; fi
-      if [ -e "/tmp/wiffy.keys" ] ; then command="$command /tmp/wiffy.keys" ; fi
       if [ -e "/tmp/wiffy.tmp" ] ; then command="$command /tmp/wiffy.tmp" ; fi
+      if [ -e "/tmp/wiffy.keys" ] ; then command="$command /tmp/wiffy.keys" ; fi
       if [ -e "/tmp/wiffy.handshake" ] ; then command="$command /tmp/wiffy.handshake" ; fi
       if [ -e "/tmp/wiffy.arp" ] ; then command="$command /tmp/wiffy.arp" ; fi
       if [ ! -z "$command" ] ; then action "Removing temp files" "rm -rfv $command" ; fi
@@ -136,23 +135,23 @@ function display() { #display type message
 
    if [ "$error" == "free" ] ; then
       output=""
-      if [ "$1" == "action" ] ; then output="\e[01;32m[>]\e[00m" ; fi
-      if [ "$1" == "info" ] ; then output="\e[01;33m[i]\e[00m" ; fi
-      if [ "$1" == "diag" ] ; then output="\e[01;34m[+]\e[00m" ; fi
-      if [ "$1" == "error" ] ; then output="\e[01;31m[!]\e[00m" ; fi
+      if [ "$1" == "action" ] ; then output="\e[01;32m[>]\e[00m"
+      elif [ "$1" == "info" ] ; then output="\e[01;33m[i]\e[00m"
+      elif [ "$1" == "diag" ] ; then output="\e[01;34m[+]\e[00m"
+      elif [ "$1" == "error" ] ; then output="\e[01;31m[!]\e[00m" ; fi
       output="$output $2"
       echo -e "$output"
 
       if [ "$diagnostics" == "true" ] ; then
-         if [ "$1" == "action" ] ; then output="[>]" ; fi
-         if [ "$1" == "info" ] ; then output="[i]" ; fi
-         if [ "$1" == "diag" ] ; then output="[+]" ; fi
-         if [ "$1" == "error" ] ; then output="[!]" ; fi
+         if [ "$1" == "action" ] ; then output="[>]"
+         elif [ "$1" == "info" ] ; then output="[i]"
+         elif [ "$1" == "diag" ] ; then output="[+]"
+         elif [ "$1" == "error" ] ; then output="[!]" ; fi
          echo -e "---------------------------------------------------------------------------------------------\n$output $2" >> $logFile
       fi
       return 0
    else
-      display error "display. Error code: $error" $logFile 1>&2
+      display error "display. Error code: $error" 1>&2
       echo -e "---------------------------------------------------------------------------------------------\nERROR: display (Error code: $error): $1, $2" >> $logFile ;
       return 1
    fi
@@ -184,10 +183,19 @@ function findAP () { #findAP
       else
          if [ "$essid" ] ; then display error "Couldn't detect ESSID ($essid)" 1>&2 ; fi
          if [ "$bssid" ] ; then display error "Couldn't detect BSSID ($bssid)" 1>&2 ; fi
-         loop=${#arrayBSSID[@]}
          echo -e " Num |              ESSID               |       BSSID       | Protected | Cha | Quality\n-----|----------------------------------|-------------------|-----------|-----|---------"
+         loop=${#arrayBSSID[@]}
          for (( i=0;i<$loop;i++)); do
-            printf '  %-2s | %-32s | %-16s | %3s (%-3s) |  %-3s|  %-6s\n' "$(($i+1))" "${arrayESSID[${i}]}" "${arrayBSSID[${i}]}" "${arrayProtected[${i}]}" "${arrayEncryption[${i}]}" "${arrayChannel[${i}]}" "${arrayQuality[${i}]}"
+            command="  %-2s | %-32s | %-16s |"
+            if [ ${arrayEncryption[${i}]} = "WEP" ] ; then command="$command \e[01;34m%3s (%-3s)\e[00m"
+            elif [ ${arrayEncryption[${i}]} = "WPA" ] ; then command="$command \e[01;36m%3s (%-3s)\e[00m"
+            else command="$command \e[01;33m%3s (%-3s)\e[00m" ; fi
+            command="$command |  %-3s|"
+            tmp=$(echo "${arrayQuality[${i}]}" | cut -d "/" -f1)
+            if [ "$tmp" -lt "25" ] ; then command="$command \e[01;31m  %-6s\n\e[00m"
+            elif [ "$tmp" -lt "40" ] ; then command="$command \e[01;33m  %-6s\n\e[00m"
+            else command="$command \e[01;32m  %-6s\n\e[00m" ; fi
+            printf "$command" "$(($i+1))" "${arrayESSID[${i}]}" "${arrayBSSID[${i}]}" "${arrayProtected[${i}]}" "${arrayEncryption[${i}]}" "${arrayChannel[${i}]}" "${arrayQuality[${i}]}"
          done
          loopSub="false"
          while [ "$loopSub" != "true" ] ; do
@@ -195,7 +203,7 @@ function findAP () { #findAP
             if [ "$REPLY" == "x" ] ; then cleanup clean
             elif [ "$REPLY" == "s" ] ; then loopSub="true"
             elif [ -z $(echo "$REPLY" | tr -dc '[:digit:]'l) ] ; then display error "Bad input" 1>&2
-            elif [ "$REPLY" -lt 1 ] || [ "$REPLY" -gt $loop ] ; then display error "Incorrect number" 1>&2
+            elif [ "$REPLY" -lt "1" ] || [ "$REPLY" -gt "$loop" ] ; then display error "Incorrect number" 1>&2
             else id="$(($REPLY-1))" ; loopSub="true" ; loopMain="true"
             fi
          done
@@ -254,7 +262,7 @@ function help() { #help
    echo "(C)opyright 2010 g0tmi1k ~ http://g0tmi1k.blogspot.com
 
  Usage: bash wiffy.sh -i [interface] -t [interface] -m [crack/dos/inject] -e [essid] -b [mac] -c [mac]
-		-w [/path/to/file] (-z [random/set/false] / -s [mac]) -x -k -o [/path/to/folder/] -d (-v / -V) ([-u] [-?])
+               -w [/path/to/file] (-z [random/set/false] / -s [mac]) -x -k -o [/path/to/folder/] -d (-v / -V) ([-u] [-?])
 
 
  Options:
@@ -376,6 +384,7 @@ while getopts "i:t:m:e:b:c:w:z:s:xko:dvVu?" OPTIONS; do
       * ) display error "Unknown option" 1>&2 ;;   # Default
    esac
 done
+mac=$(macchanger --show "$interface" | awk -F " " '{print $3}')
 
 #----------------------------------------------------------------------------------------------#
 if [ "$debug" == "true" ] ; then
@@ -404,7 +413,7 @@ if [ "$mode" == "crack" ] ; then
    if [ -z "$outputCAP" ] ; then display error "outputCAP ($outputCAP) isn't correct" 1>&2 ; outputCAP="$(pwd)" ; fi
    if [ "$benchmark" != "true" ] && [ "$benchmark" != "false" ] ; then display error "benchmark ($benchmark) isn't correct" 1>&2 ; benchmark="false" ; fi
 fi
-if [ "$verbose" != "0" ] && [ "$verbose" != "1" ] && [ "$verbose" != "2" ] ; then display error "verbose ($verbose) isn't correct" 1>&2 ; verbose="0"; fi
+if [ "$verbose" != "0" ] && [ "$verbose" != "1" ] && [ "$verbose" != "2" ] ; then display error "verbose ($verbose) isn't correct" 1>&2 ; verbose="0" ; fi
 if [ "$debug" != "true" ] && [ "$debug" != "false" ] ; then display error "debug ($debug) isn't correct" 1>&2 ; debug="true" ; fi # Something up... Find out what!
 if [ "$diagnostics" != "true" ] && [ "$diagnostics" != "false" ] ; then display error "diagnostics ($diagnostics) isn't correct" 1>&2 ; diagnostics="false" ; fi
 if [ "$diagnostics" == "true" ] && [ -z "$logFile" ] ; then display error "logFile ($logFile) isn't correct" 1>&2 ; logFile="wiffy.log" ; fi
@@ -441,7 +450,6 @@ action "Refreshing interface" "ifconfig $interface down && ifconfig $interface u
 findAP
 
 #----------------------------------------------------------------------------------------------#
-mac=$(macchanger --show "$interface" | awk -F " " '{print $3}')
 if [ -e "/sys/class/net/$interface/device/driver" ] ; then wifiDriver=$(ls -l "/sys/class/net/$interface/device/driver" | sed 's/^.*\/\([a-zA-Z0-9_-]*\)$/\1/') ; fi
 
 #----------------------------------------------------------------------------------------------#
@@ -703,15 +711,18 @@ if [ "$mode" == "crack" ] ; then
    if [ "$benchmark" == "true" ] && [ "$encryption" == "WPA" ] && [ -e "$wordlist" ] ; then
       display action "Benchmarking"
       wordlistLines=$(wc -l < "$wordlist")
-      action "Benchmarking" "aircrack-ng /tmp/wiffy-01.cap -w $wordlist -e \"$essid\" | tee /tmp/wiffy.tmp & sleep 5 && killall xterm"
-      ks=$(cat "/tmp/wiffy.tmp" | grep "keys tested" | tail -1 | awk -F " " '{print $5}' | sed 's/.\(.*\)/\1/')
-      rm -f "/tmp/wiffy.tmp"
+      if [ "$wordlistLines" -lt 1000 ] ; then display error "Benchmarking: Failed. Not enough words in dictionary" 1>&2
+      else
+         action "Benchmarking" "aircrack-ng /tmp/wiffy-01.cap -w $wordlist -e \"$essid\" | tee /tmp/wiffy.tmp & sleep 5 && killall xterm"
+         ks=$(cat "/tmp/wiffy.tmp" | grep "keys tested" | tail -1 | awk -F " " '{print $5}' | sed 's/.\(.*\)/\1/')
+         rm -f "/tmp/wiffy.tmp"
 
-      mins=$(awk 'BEGIN {print '$wordlistLines' / ( '$ks' * 60 ) }' | awk -F\. '{if(($2/10^length($2)) >= .5) printf("%d\n",$1+1) ; else printf("%d\n",$1)}')
-      hours=$(awk 'BEGIN {print '$wordlistLines' / ( '$ks' * 3600 ) }' | awk -F\. '{if(($2/10^length($2)) >= .5) printf("%d\n",$1+1) ; else printf("%d\n",$1)}')
+         mins=$(awk 'BEGIN {print '$wordlistLines' / ( '$ks' * 60 ) }' | awk -F\. '{if(($2/10^length($2)) >= .5) printf("%d\n",$1+1) ; else printf("%d\n",$1)}')
+         hours=$(awk 'BEGIN {print '$wordlistLines' / ( '$ks' * 3600 ) }' | awk -F\. '{if(($2/10^length($2)) >= .5) printf("%d\n",$1+1) ; else printf("%d\n",$1)}')
 
-      command=$(date --date="$mins min")
-      display info "Benchmark: (ETA): $command ~ $mins minutes ($hours hours) to try $wordlistLines words"
+         command=$(date --date="$mins min")
+         display info "Benchmark: (ETA): $command ~ $mins minutes ($hours hours) to try $wordlistLines words"
+      fi
    fi
 
    #----------------------------------------------------------------------------------------------#
