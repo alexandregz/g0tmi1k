@@ -1,6 +1,6 @@
 #!/bin/bash
 #----------------------------------------------------------------------------------------------#
-#wiffy.sh v0.1 (#21 2010-10-07)                                                                #
+#wiffy.sh v0.1 (#22 2010-10-07)                                                                #
 # (C)opyright 2010 - g0tmi1k                                                                   #
 #---License------------------------------------------------------------------------------------#
 #  This program is free software: you can redistribute it and/or modify it under the terms     #
@@ -54,8 +54,8 @@ benchmark="true"
      displayMore="false"          # Gives more details on whats happening
            debug="false"          # Windows don't close, shows extra stuff
          logFile="wiffy.log"      # Filename of output
-             svn="25"             # SVN Number
-         version="0.1 (#21)"      # Program version
+             svn="26"             # SVN Number
+         version="0.1 (#22)"      # Program version
 trap 'interrupt break' 2          # Captures interrupt signal (Ctrl + C)
 
 #----Functions---------------------------------------------------------------------------------#
@@ -572,10 +572,14 @@ function moveCap() { #moveCap $essid
    if [ -z "$1" ] ; then error="1" ; fi # Coding error
 
    if [ "$error" == "free" ] ; then
-      if [ "$keepCAP" == "true" ] && [[ "$encryption" == *WPA* ]] ; then pathCAP="$outputCAP/$1.cap"
+      command=""
+      if [ "$keepCAP" == "true" ] && [[ "$encryption" == *WPA* ]] ; then
+         if [ ! -e "$pathCAP" ] ; then command="mkdir $pathCAP ; "
+         pathCAP="$outputCAP/$1.cap"
       else pathCAP="/tmp/wiffy-$1.cap" ; fi
       display action "Moving handshake: $pathCAP"
-      action "Moving handshake" "mv -f /tmp/wiffy-01.cap $pathCAP"
+      command="$command mv -f /tmp/wiffy-01.cap $pathCAP"
+      action "Moving handshake" "$command"
       return 0
    else
       display error "moveCap Error code: $error"
@@ -614,7 +618,7 @@ function update() { #update
       if [ "$command" != "$svn" ] ; then
          display info "Updating"
          svn export -q --force "http://g0tmi1k.googlecode.com/svn/trunk/wiffy" ./
-         display info "Updated to $update (="
+         display info "Updated to $command. (="
       else
          display info "You're using the latest version. (="
       fi
@@ -833,7 +837,7 @@ monitorInterface=$(iwconfig 2>/dev/null | grep "Mode:Monitor" | awk '{print $1}'
 
 if [ -z "$monitorInterface" ] ; then
    action "Monitor Mode (Starting)" "airmon-ng start $interface | tee /tmp/wiffy.tmp"
-   monitorInterface=$(cat "/tmp/wiffy.tmp" | awk '/monitor mode enabled on/ {print $5}' | tr -d '\011' | sed 's/\(.*\)./\1/')
+   monitorInterface=$(iwconfig 2>/dev/null | grep "Mode:Monitor" | awk '{print $1}' | head -1)
 fi
 
 if [ "$displayMore" == "true" ] ; then display info "monitorInterface=$monitorInterface" ; fi
