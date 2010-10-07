@@ -54,7 +54,7 @@ benchmark="true"
      displayMore="false"          # Gives more details on whats happening
            debug="false"          # Windows don't close, shows extra stuff
          logFile="wiffy.log"      # Filename of output
-             svn="21"             # SVN Number
+             svn="25"             # SVN Number
          version="0.1 (#21)"      # Program version
 trap 'interrupt break' 2          # Captures interrupt signal (Ctrl + C)
 
