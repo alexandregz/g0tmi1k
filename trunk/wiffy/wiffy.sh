@@ -1,6 +1,6 @@
 #!/bin/bash
 #----------------------------------------------------------------------------------------------#
-#wiffy.sh v0.1 (#24 2010-10-10)                                                                #
+#wiffy.sh v0.1 (#25 2010-10-10)                                                                #
 # (C)opyright 2010 - g0tmi1k                                                                   #
 #---License------------------------------------------------------------------------------------#
 #  This program is free software: you can redistribute it and/or modify it under the terms     #
@@ -54,8 +54,8 @@ benchmark="true"
      displayMore="false"          # Gives more details on whats happening
            debug="false"          # Windows don't close, shows extra stuff
          logFile="wiffy.log"      # Filename of output
-             svn="28"             # SVN Number
-         version="0.1 (#24)"      # Program version
+             svn="29"             # SVN Number
+         version="0.1 (#25)"      # Program version
 trap 'interrupt break' 2          # Captures interrupt signal (Ctrl + C)
 
 #----Functions---------------------------------------------------------------------------------#
@@ -609,7 +609,7 @@ function testAP() { #testAP $essid $bssid $encryption
             #if [[ "$REPLY" =~ ^[Nn]$ ]] ; then return 1
             #else connect "$essid" "$key" ; fi
             if [ "$connect" == "true" ] ; then 
-               client=$(echo $tmp | grep "BSSID: $2" -q  && echo $tmp | grep "Encryption: $3" -q && echo $tmp | sed -n 's/.*Key: //p')
+               client=$(echo $tmp | grep "BSSID: $2" -q  && echo $tmp | grep "Encryption: $3" -q && echo $tmp | sed -n 's/.*Client: //p')
                connect "$essid" "$key" "$client"
                if [ "$stage" == "connected" ] ; then cleanUp clean ; fi
             fi
