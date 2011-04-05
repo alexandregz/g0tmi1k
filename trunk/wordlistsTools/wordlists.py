@@ -1,10 +1,11 @@
 #!/usr/bin/python
 #----------------------------------------------------------------------------------------------#
-#wordlists.py v0.2 (#1 2010-09-28)                                                          #
+#wordlists.py v0.2 (#1 2010-09-28)                                                             #
 # (C)opyright 2010 - g0tmi1k                                                                   #
 #---Important----------------------------------------------------------------------------------#
 #                     *** Do NOT use this for illegal or malicious use ***                     #
-#              The programs are provided as is without any guarantees or warranty.             #
+#                         YOU are using this program at YOUR OWN RISK.                         #
+#             This software is provided "as is" WITHOUT ANY guarantees OR warranty.            #
 #---Modules------------------------------------------------------------------------------------#
 import array, sys, time, random, os
 
@@ -194,7 +195,7 @@ def removeDup (mode):
             if ((element + "\n") in array_dupfree): array_dupfree.remove(element  + "\n")
             if debug == True: print element , "is duplicated," , array.count(element) , "times."
         else:
-            array_dupfree.append(element + "\n")            # Havent had it, so lets record it
+            array_dupfree.append(element + "\n")             # Havent had it, so lets record it
             if mode == '1': file_write.write(element + "\n") # Save it to our word list now (UNSORTED)
 
     if mode == '2': #Remove dups + Sorts 0
@@ -245,7 +246,7 @@ print "\033[36m[*]\033[0m wordlists v"+version
 if debug == True:
     print info+"Debug mode: On"
     print "-----------------------------------------------------"
-
+    
 for file in filename[1:]:
     try:
         file_open = open(file,"r")
